@@ -542,7 +542,8 @@ elif st.session_state.halaman == "Visualisasi":
                                 kolom_bersih = [c for c in res.columns if c not in ['_Tahun_File_']]
                                 df_fix = res[kolom_bersih].copy()
                                 df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
-                                df_tab = df_tab.rename(columns={df_tab.columns[0]: "Jenis Harga"})
+                                kolom_baru = ["Jenis Harga"] + list(df_tab.columns[1:])
+                                df_tab.columns = kolom_baru
                                 res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
 
 
@@ -550,11 +551,7 @@ elif st.session_state.halaman == "Visualisasi":
                                 # 1. Rapikan Kolom secara Langsung (Pasti Aman)
                                 # Dari hasil melt di atas, urutannya pasti: ["Jenis Harga", "Tahun", "Nilai Ekonomi"]
                                 res_plot = res_melt.copy()
-                                res_plot = res_plot.rename(columns={
-                                    "Jenis Harga": "Kategori",
-                                    "Tahun": "Tahun",
-                                    "Nilai Ekonomi": "Nilai"
-                                })
+                                res_plot.columns = ['Kategori', 'Tahun', 'Nilai']
                                 
                                 # Paksa jadi string biar sinkron sama warna kustom
                                 res_plot['Kategori'] = res_plot['Kategori'].astype(str)

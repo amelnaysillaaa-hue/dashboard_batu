@@ -119,9 +119,9 @@ import os
 from google import genai
 
 def minta_interpretasi_gemini(nama_survei, ringkasan_data):
-    api_key_saya = "AIzaSyCZ4tq9Ju7MDGb06LReaQRh2ouMbL959Is" 
+    api_key_saya = "AIzaSyBDvlhCqNEFh5bgnBwJPo1ERmdNsa8Fkc0" 
     
-    client = genai.Client(api_key="AIzaSyCZ4tq9Ju7MDGb06LReaQRh2ouMbL959Is")
+    client = genai.Client(api_key="AIzaSyBDvlhCqNEFh5bgnBwJPo1ERmdNsa8Fkc0")
 
     try:
         response = client.models.generate_content(

@@ -5,3 +5,4 @@ pyreadstat
 fastparquet
 openpyxl
 python-dotenv
+google-genai

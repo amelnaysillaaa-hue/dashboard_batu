@@ -539,11 +539,11 @@ elif st.session_state.halaman == "Visualisasi":
                                 b_marg = 120 if (isi_ai and opt_posisi == "Dalam Grafik") else 80
 
                                 # Reshape data untuk Plotly (Tahun sebagai Legend)
-                                kolom_bersih = [c for c in res.columns if c not in ['_Tahun_File_']]
-                                df_fix = res[kolom_bersih].copy()
+                                res_reset = res.reset_index(drop=True).copy()
+                                kolom_bersih = [c for c in res_reset.columns if c not in ['_Tahun_File_']]
+                                df_fix = res_reset[kolom_bersih].copy()
                                 df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
-                                kolom_baru = ["Jenis Harga"] + list(df_tab.columns[1:])
-                                df_tab.columns = kolom_baru
+                                df_tab.columns = ["Jenis Harga"] + list(df_tab.columns[1:])
                                 res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
 
 

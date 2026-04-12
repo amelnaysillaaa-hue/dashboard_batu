@@ -1,0 +1,1 @@
+{"charts": [{"type": "Bar", "x": "", "agg": "Jumlah (Count)", "years": [], "font_family": "Lexend", "font_size": 12, "color_txt": "#000000", "color_bg": "#d5afaf", "color_map": {"Asing": "#43477e", "Indonesia": "#fa9663", "Total": "#f263fa"}, "ai_border": false, "ai_bg_col": "#FFFFFF", "ai_line_col": "#000000", "ai_line_w": 1, "ai_y": -0.2, "ai_align": "left", "ai_w": 500}]}

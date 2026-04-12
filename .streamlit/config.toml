@@ -1,0 +1,18 @@
+[theme]
+# --- WARNA UTAMA (ORANGE) ---
+# Ini buat ganti area putih yang kamu mau tadi
+backgroundColor = "#ffffff" 
+
+# --- WARNA SIDEBAR (BIRU TUA) ---
+# Ini buat menu di sebelah kiri biar elegan
+secondaryBackgroundColor = "#b0b4e6c9" 
+
+# --- WARNA AKSEN & TOMBOL ---
+# Warna untuk garis, tombol, dan elemen aktif
+primaryColor = "#021d69" 
+
+# --- WARNA TEKS ---
+# Harus putih biar kebaca di atas orange dan biru tua
+textColor = "#000000" 
+
+font = "lexend"

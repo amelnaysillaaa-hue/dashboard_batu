@@ -5,7 +5,7 @@ backgroundColor = "#ffffff"
 
 # --- WARNA SIDEBAR (BIRU TUA) ---
 # Ini buat menu di sebelah kiri biar elegan
-secondaryBackgroundColor = "#b0b4e6c9" 
+secondaryBackgroundColor = "#b0b4e6" 
 
 # --- WARNA AKSEN & TOMBOL ---
 # Warna untuk garis, tombol, dan elemen aktif

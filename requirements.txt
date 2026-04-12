@@ -4,3 +4,4 @@ plotly
 pyreadstat
 fastparquet
 openpyxl
+python-dotenv

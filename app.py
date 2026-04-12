@@ -538,14 +538,10 @@ elif st.session_state.halaman == "Visualisasi":
                                 h_pake = 450
                                 b_marg = 120 if (isi_ai and opt_posisi == "Dalam Grafik") else 80
 
-                                # Reshape data untuk Plotly (Tahun sebagai Legend)
-                                kolom_bersih = [c for c in df_clean.columns if c not in ['_Tahun_File_']]
-                                df_fix = df_clean[kolom_bersih]
-                                df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
-                                df_tab.columns.values[0] = "Jenis Harga"
-                                res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
-
-
+                                # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
+                                res_plot = res.copy()
+                                res_plot = res_plot.rename(columns={'_Tahun_File_': 'Tahun', x_f: 'Kategori'})
+                                
                                 # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
                                 # 1. Rapikan Kolom secara Langsung (Pasti Aman)
                                 # Dari hasil melt di atas, urutannya pasti: ["Jenis Harga", "Tahun", "Nilai Ekonomi"]

@@ -538,16 +538,19 @@ elif st.session_state.halaman == "Visualisasi":
                                 h_pake = 450
                                 b_marg = 120 if (isi_ai and opt_posisi == "Dalam Grafik") else 80
 
-                               # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
-                                # Langsung ambil dari 'res' karena 'res' sudah berisi hasil hitungan (Sum/Mean/Count)
-                                res_plot = res.copy()
+                                # Reshape data untuk Plotly (Tahun sebagai Legend)
+                                kolom_bersih = [c for c in df_clean.columns if c not in ['_Tahun_File_']]
+                                df_fix = df_clean[kolom_bersih]
+                                df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
+                                df_tab.columns.values[0] = "Jenis Harga"
+                                res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
 
-                                # Kita rename kolomnya supaya rapi di grafik, apapun nama asli kolomnya
-                                res_plot = res_plot.rename(columns={
-                                    x_f: 'Kategori',           # Kolom kategori (misal: Jenis Harga, Kecamatan, dll)
-                                    '_Tahun_File_': 'Tahun',   # Kolom tahun
-                                    'Nilai': 'Nilai Ekonomi'   # Hasil hitungan angkanya
-                                })
+
+                                # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
+                                # 1. Rapikan Kolom secara Langsung (Pasti Aman)
+                                # Dari hasil melt di atas, urutannya pasti: ["Jenis Harga", "Tahun", "Nilai Ekonomi"]
+                                res_plot = res_melt.copy()
+                                res_plot.columns = ['Kategori', 'Tahun', 'Nilai']
                                 
                                 # Paksa jadi string biar sinkron sama warna kustom
                                 res_plot['Kategori'] = res_plot['Kategori'].astype(str)

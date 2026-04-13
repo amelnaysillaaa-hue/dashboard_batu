@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import shutil
 import json
+import streamlit as st
 
 BASE_DIR = "data_survei"
 
@@ -119,9 +120,9 @@ import os
 from google import genai
 
 def minta_interpretasi_gemini(nama_survei, ringkasan_data):
-    api_key_saya = "AIzaSyA5egpXc1oJUx-SDYwIrx9Bs-HNWduuNpU" 
+    api_key_aman = st.secrets["GOOGLE_API_KEY"] 
     
-    client = genai.Client(api_key="AIzaSyA5egpXc1oJUx-SDYwIrx9Bs-HNWduuNpU")
+    client = genai.Client(api_key=api_key_aman)
 
     try:
         response = client.models.generate_content(

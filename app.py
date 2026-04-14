@@ -507,7 +507,9 @@ elif st.session_state.halaman == "Visualisasi":
                                 fig = px.bar(df_group, x='Nilai', y=x_var, color=color_var,
                                              orientation='h', barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
-                                l_margin = 200
+                                l_margin = 50
+                                max_val = df_group['Nilai'].max()
+                                fig.update_xaxes(range=[0, max_val * 1.05])
                                 fig.update_traces(marker=dict(cornerradius=10))
                             else:
                                 fig = px.bar(df_group, x=x_var, y='Nilai', color=color_var,

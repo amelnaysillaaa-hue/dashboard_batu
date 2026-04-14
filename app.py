@@ -393,7 +393,7 @@ elif st.session_state.halaman == "Visualisasi":
                                                            key=f"orient_{idx}")
                             # Tampilan font & warna
                             st.markdown("**🎨 Tampilan**")
-                            list_font = ["Arial", "Verdana", "Montserrat", "Poppins", "Roboto"]
+                            list_font = ["Arial", "Courier New", "Verdana", "Times New Roman", "Comic Sans MS", "Lexend", "Hanken Grotesk", "Montserrat", "Poppins", "Roboto", "Open Sans"]
                             n_font = st.selectbox("Font", list_font,
                                                   index=list_font.index(ch.get('font_family', 'Arial')) if ch.get('font_family') in list_font else 0,
                                                   key=f"font_{idx}")
@@ -508,11 +508,13 @@ elif st.session_state.halaman == "Visualisasi":
                                              orientation='h', barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 200
+                                fig.update_traces(marker=dict(cornerradius=10))
                             else:
                                 fig = px.bar(df_group, x=x_var, y='Nilai', color=color_var,
                                              barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 80
+                                fig.update_traces(marker=dict(cornerradius=10))
                         elif n_type == "Line":
                             fig = px.line(df_group, x=x_var, y='Nilai', color=color_var,
                                           markers=True, color_discrete_map=color_map_aktif)

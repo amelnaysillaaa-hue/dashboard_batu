@@ -83,10 +83,9 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     # --- KONVERSI KOMA MENJADI TITIK UNTUK SEMUA KOLOM ---
     def convert_comma_to_dot(series):
         if series.dtype == 'object':
-            # Coba ubah string dengan koma menjadi float
             try:
                 # Ganti koma dengan titik, lalu konversi ke numeric
-                converted = pd.to_numeric(series.str.replace(',', '.', regex=False), errors='ignore')
+                converted = pd.to_numeric(series.str.replace(',', '.', regex=False), errors='coerce')
                 if converted.notna().any():
                     return converted
             except:
@@ -103,107 +102,110 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     def is_numeric(col):
         return pd.api.types.is_numeric_dtype(df[col])
 
-    def is_year_column(col):
-        col_name = str(col)
-        if re.search(r'tahun|year|thn', col_name, re.IGNORECASE):
-            return True
-        if is_numeric(col):
-            uniq = df[col].dropna().unique()
-            if len(uniq) <= 20:
-                try:
-                    if all(1900 <= float(x) <= 2100 for x in uniq):
-                        return True
-                except:
-                    pass
-        return False
-
-    # 1. Deteksi kolom tahun (jika ada kolom khusus tahun)
-    tahun_col = None
-    for col in df.columns:
-        if is_year_column(col):
-            tahun_col = col
-            break
-
-    # 2. Deteksi kolom kategori
+    # 1. Deteksi kolom kategori: cari kolom dengan tipe object/string dan unique sedikit
     kategori_col = None
     for col in df.columns:
-        if col == tahun_col:
-            continue
-        if is_categorical(col):
-            if df[col].nunique() <= 50:
-                kategori_col = col
-                break
+        if is_categorical(col) and df[col].nunique() <= 50:
+            kategori_col = col
+            break
     if kategori_col is None:
         for col in df.columns:
-            if col != tahun_col and not is_numeric(col):
+            if not is_numeric(col):
                 kategori_col = col
                 break
     if kategori_col is None:
         kategori_col = df.columns[0]
 
-    # 3. Deteksi kolom nilai (numerik, bukan tahun & bukan kategori)
-    nilai_col = None
+    # 2. Deteksi kolom tahun: cari kolom yang namanya bisa dijadikan integer antara 2000-2030
+    #    atau kolom yang isinya angka tahun
+    year_columns = []
     for col in df.columns:
-        if col not in [tahun_col, kategori_col] and is_numeric(col):
-            nilai_col = col
-            break
-    if nilai_col is None:
-        for col in df.columns:
-            if is_numeric(col) and col != tahun_col:
-                nilai_col = col
-                break
-    if nilai_col is None:
-        return False, "Tidak ditemukan kolom numerik untuk nilai."
+        if col == kategori_col:
+            continue
+        # Coba parsing nama kolom sebagai integer
+        try:
+            yr = int(col)
+            if 2000 <= yr <= 2030:
+                year_columns.append((col, yr))
+                continue
+        except:
+            pass
+        # Cek isi kolom apakah berisi angka tahun (jika kolom numerik dan unique sedikit)
+        if is_numeric(col):
+            uniq = df[col].dropna().unique()
+            if len(uniq) <= 10 and all(2000 <= x <= 2030 for x in uniq if not pd.isna(x)):
+                year_columns.append((col, int(uniq[0])))  # ambil tahun pertama sebagai representasi
+                continue
+        # Cek nama kolom mengandung kata tahun
+        if re.search(r'tahun|year|thn', str(col), re.I):
+            # Jika kolom berisi nilai tahun, gunakan nilai uniknya
+            if is_numeric(col):
+                uniq = df[col].dropna().unique()
+                for yr in uniq:
+                    if 2000 <= yr <= 2030:
+                        year_columns.append((col, int(yr)))
+            else:
+                # Kolom teks, coba konversi ke integer
+                try:
+                    vals = df[col].dropna().astype(str).str.extract(r'(\d{4})')[0].dropna().unique()
+                    for yr in vals:
+                        y = int(yr)
+                        if 2000 <= y <= 2030:
+                            year_columns.append((col, y))
+                except:
+                    pass
 
-    folder = os.path.join(BASE_DIR, nama_survei)
-    os.makedirs(folder, exist_ok=True)
-
-    if tahun_col is not None:
-        # Format panjang: ada kolom tahun
-        df[tahun_col] = df[tahun_col].astype(str)
-        tahun_unik = df[tahun_col].unique()
-        for th in tahun_unik:
-            df_th = df[df[tahun_col] == th][[kategori_col, nilai_col]].copy()
-            df_th.columns = ['Kategori', 'Nilai']
-            df_th = df_th.dropna(subset=['Nilai'])
-            # Pastikan Nilai bertipe float
-            df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
-            df_th = df_th.dropna(subset=['Nilai'])
-            path_file = os.path.join(folder, f"{th}.parquet")
-            df_th.to_parquet(path_file, index=False)
-        return True, f"✅ Berhasil! {len(tahun_unik)} tahun data tersimpan. (Kategori='{kategori_col}', Nilai='{nilai_col}', Tahun='{tahun_col}')"
-    else:
-        # Coba format lebar (kolom lain sebagai tahun)
-        year_candidates = []
+    # Jika tidak ada kolom tahun yang terdeteksi, gunakan semua kolom selain kategori sebagai tahun
+    if not year_columns:
         for col in df.columns:
-            if col not in [kategori_col, nilai_col]:
+            if col != kategori_col:
                 try:
                     yr = int(col)
                     if 2000 <= yr <= 2030:
-                        year_candidates.append((col, yr))
+                        year_columns.append((col, yr))
                 except:
                     pass
-        if year_candidates:
-            for col, yr in year_candidates:
-                df_th = df[[kategori_col, col]].copy()
-                df_th.columns = ['Kategori', 'Nilai']
-                df_th = df_th.dropna(subset=['Nilai'])
-                # Pastikan Nilai bertipe float
-                df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
-                df_th = df_th.dropna(subset=['Nilai'])
-                path_file = os.path.join(folder, f"{yr}.parquet")
-                df_th.to_parquet(path_file, index=False)
-            return True, f"✅ Berhasil! {len(year_candidates)} tahun data tersimpan (format lebar)."
-        else:
-            # Tidak ada petunjuk tahun, simpan sebagai tahun 2024
-            df_th = df[[kategori_col, nilai_col]].copy()
-            df_th.columns = ['Kategori', 'Nilai']
-            df_th = df_th.dropna(subset=['Nilai'])
-            df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
-            df_th = df_th.dropna(subset=['Nilai'])
-            path_file = os.path.join(folder, "2024.parquet")
+
+    if not year_columns:
+        # Tidak ada tahun, simpan sebagai tahun 2024
+        folder = os.path.join(BASE_DIR, nama_survei)
+        os.makedirs(folder, exist_ok=True)
+        # Ambil kolom numerik pertama sebagai nilai
+        nilai_col = None
+        for col in df.columns:
+            if col != kategori_col and is_numeric(col):
+                nilai_col = col
+                break
+        if nilai_col is None:
+            return False, "Tidak ditemukan kolom numerik untuk nilai."
+        df_th = df[[kategori_col, nilai_col]].copy()
+        df_th.columns = ['Kategori', 'Nilai']
+        df_th = df_th.dropna(subset=['Nilai'])
+        df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
+        df_th = df_th.dropna(subset=['Nilai'])
+        path_file = os.path.join(folder, "2024.parquet")
+        df_th.to_parquet(path_file, index=False)
+        return True, "⚠️ Tidak ditemukan kolom tahun. Data disimpan sebagai tahun 2024. Anda dapat mengedit tahun di tabel data nanti."
+
+    # 3. Simpan data per tahun
+    folder = os.path.join(BASE_DIR, nama_survei)
+    os.makedirs(folder, exist_ok=True)
+
+    # Untuk setiap tahun, ambil nilai dari kolom tahun tersebut
+    for col_name, tahun in year_columns:
+        if col_name == kategori_col:
+            continue
+        # Ambil data: kolom kategori dan kolom tahun
+        df_th = df[[kategori_col, col_name]].copy()
+        df_th.columns = ['Kategori', 'Nilai']
+        df_th = df_th.dropna(subset=['Nilai'])
+        df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
+        df_th = df_th.dropna(subset=['Nilai'])
+        if not df_th.empty:
+            path_file = os.path.join(folder, f"{tahun}.parquet")
             df_th.to_parquet(path_file, index=False)
-            return True, "⚠️ Tidak ditemukan kolom tahun. Data disimpan sebagai tahun 2024. Anda dapat mengedit tahun di tabel data nanti."
+
+    return True, f"✅ Berhasil! {len(year_columns)} tahun data tersimpan (format lebar)."
         
 # ==================== FUNGSI BACA DATA ====================
 def ambil_info_data(nama_survei, tahun):

@@ -127,7 +127,7 @@ def minta_interpretasi_gemini(ringkasan_data, nama_survei):
     client = genai.Client(api_key=api_key)
     try:
         response = client.models.generate_content(
-            model='gemini-1.5-flash',  # ganti model
+            model='gemini-2.0-flash',
             contents=f"Analisis singkat (3 kalimat) data {nama_survei}: {ringkasan_data}"
         )
         return response.text

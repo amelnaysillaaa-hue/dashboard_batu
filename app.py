@@ -566,22 +566,22 @@ elif st.session_state.halaman == "Visualisasi":
                         if n_type == "Bar":
                             if n_orientasi == "Horizontal":
                                 fig = px.bar(df_group, x='Nilai', y=x_var, color=color_var,
-                                             orientation='h', barmode='group', text_auto='.2f',
+                                             orientation='h', barmode='group', text_auto=True,
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 50
                                 fig.update_traces(marker=dict(cornerradius=10))
                             else:
                                 fig = px.bar(df_group, x=x_var, y='Nilai', color=color_var,
-                                             barmode='group', text_auto='.2f',
+                                             barmode='group', text_auto=True,
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 80
                                 fig.update_traces(marker=dict(cornerradius=10))
                         elif n_type == "Line":
                             fig = px.line(df_group, x=x_var, y='Nilai', color=color_var,
-                                          markers=True, color_discrete_map=color_map_aktif)
+                                          markers=True, text_auto=True, color_discrete_map=color_map_aktif)
                             l_margin = 80
                         else:
-                            fig = px.box(df_group, x=x_var, y='Nilai', color=color_var,
+                            fig = px.box(df_group, x=x_var, y='Nilai', color=color_var, text_auto=True,
                                          color_discrete_map=color_map_aktif)
                             l_margin = 80
 
@@ -641,7 +641,7 @@ elif st.session_state.halaman == "Visualisasi":
                             legend=legend_settings,
                             xaxis=dict(tickangle=0, showgrid=False, linecolor=c_txt,
                                        tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
-                            yaxis=dict(tickformat=',.2f', gridcolor='rgba(128,128,128,0.1)',
+                            yaxis=dict(gridcolor='rgba(128,128,128,0.1)',
                                        showline=False, zeroline=False,
                                        tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
                         )

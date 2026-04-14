@@ -2,23 +2,23 @@ import os
 import pandas as pd
 import shutil
 import json
-import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+
+load_dotenv()
 
 BASE_DIR = "data_survei"
 
 def inisialisasi_sistem():
-    """Memastikan folder utama tersedia."""
     if not os.path.exists(BASE_DIR):
         os.makedirs(BASE_DIR)
 
 def ambil_daftar_survei():
-    """Mengambil semua folder survei yang ada."""
     if not os.path.exists(BASE_DIR):
         return []
     return sorted([d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))])
 
 def tambah_survei_baru(nama):
-    """Logika pembuatan folder survei."""
     nama_bersih = nama.strip().lower()
     path = os.path.join(BASE_DIR, nama_bersih)
     if not os.path.exists(path):
@@ -27,7 +27,6 @@ def tambah_survei_baru(nama):
     return False, f"Gagal! Survei '{nama.upper()}' sudah ada."
 
 def hapus_survei(nama):
-    """Logika penghapusan folder survei."""
     path = os.path.join(BASE_DIR, nama)
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -35,46 +34,36 @@ def hapus_survei(nama):
     return False, "Gagal menghapus! Folder tidak ditemukan."
 
 def simpan_data_upload(nama_survei, file, tahun):
-    """Logika membaca dan menyimpan data ke format Parquet."""
     try:
         path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
-        
-        # 1. Membaca file
         if file.name.endswith('.sav'):
             df = pd.read_spss(file)
-            df.attrs = {} 
         elif file.name.endswith('.csv'):
             df = pd.read_csv(file)
         elif file.name.endswith(('.xls', '.xlsx')):
             df = pd.read_excel(file)
         else:
             return False, "Format file tidak didukung."
-        
-        # 2. Simpan ke Parquet
         df.to_parquet(path, index=False)
         return True, f"Data {nama_survei.upper()} tahun {tahun} berhasil diunggah."
-        
     except Exception as e:
         return False, f"Terjadi kesalahan: {str(e)}"
-    
+
 def ambil_info_data(nama_survei, tahun):
-    """Membaca data untuk diinspeksi di halaman Detail."""
     path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
     if os.path.exists(path):
         return pd.read_parquet(path)
     return None
 
 def simpan_perubahan_data(nama_survei, tahun, df_baru):
-    """Menyimpan data hasil edit (timpa file lama tanpa backup)."""
     try:
         path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
         df_baru.to_parquet(path, index=False)
         return True, f"Data {nama_survei.upper()} {tahun} berhasil diperbarui."
     except Exception as e:
         return False, f"Gagal menyimpan: {str(e)}"
-    
+
 def hapus_dataset_tahun(nama_survei, tahun):
-    """Menghapus satu file parquet tahun tertentu secara permanen."""
     try:
         path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
         if os.path.exists(path):
@@ -97,40 +86,52 @@ def ambil_metadata_tahunan(nama_survei, tahun):
     return {}
 
 def simpan_viz_config(nama_survei, config):
-    """Menyimpan konfigurasi filter dan daftar grafik ke JSON."""
     path = os.path.join(BASE_DIR, nama_survei, "viz_config.json")
     with open(path, 'w') as f:
         json.dump(config, f)
 
 def ambil_viz_config(nama_survei):
-    """Mengambil konfigurasi visualisasi jika ada."""
     path = os.path.join(BASE_DIR, nama_survei, "viz_config.json")
     if os.path.exists(path):
         with open(path, 'r') as f:
             return json.load(f)
     return None
 
-import os
-from dotenv import load_dotenv  
-from google import genai 
+# ========== FUNGSI TAMBAHAN UNTUK INPUT MANUAL ==========
+def tambah_data_manual(nama_survei, tahun, kategori, nilai):
+    folder = os.path.join(BASE_DIR, nama_survei)
+    os.makedirs(folder, exist_ok=True)
+    file_path = os.path.join(folder, f"{tahun}.parquet")
+    df_baru = pd.DataFrame([{"Kategori": str(kategori), "Nilai": float(nilai)}])
+    if os.path.exists(file_path):
+        df_lama = pd.read_parquet(file_path)
+        df_gabung = pd.concat([df_lama, df_baru], ignore_index=True)
+        df_gabung.to_parquet(file_path, index=False)
+    else:
+        df_baru.to_parquet(file_path, index=False)
+    return True, f"Berhasil menambah data: {kategori} = {nilai} (tahun {tahun})"
 
-load_dotenv() # Sekarang baris ini tidak akan error lagi
+def hapus_semua_data_tahun(nama_survei, tahun):
+    folder = os.path.join(BASE_DIR, nama_survei)
+    file_path = os.path.join(folder, f"{tahun}.parquet")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        return True, f"Data tahun {tahun} berhasil dihapus."
+    return False, f"Tidak ada data untuk tahun {tahun}."
 
-import os
-from google import genai
-
-def minta_interpretasi_gemini(nama_survei, ringkasan_data):
-    api_key_aman = st.secrets["GOOGLE_API_KEY"] 
-    
-    client = genai.Client(api_key=api_key_aman)
-
+# ========== FUNGSI GEMINI (DIPERBAIKI) ==========
+def minta_interpretasi_gemini(ringkasan_data, nama_survei):
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return "API key tidak ditemukan. Setel environment variable GOOGLE_API_KEY."
+    client = genai.Client(api_key=api_key)
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash', 
+            model='gemini-2.0-flash',
             contents=f"Berikan analisis super singkat (maksimal 3 kalimat) untuk data {nama_survei}. "
                      f"Langsung ke poin utamanya saja, jangan pakai pembukaan basa-basi. "
                      f"Data: {ringkasan_data}"
-            )
+        )
         return response.text
     except Exception as e:
         return f"Gagal panggil AI: {str(e)}"

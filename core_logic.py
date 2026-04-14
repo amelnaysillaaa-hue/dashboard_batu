@@ -5,6 +5,7 @@ import json
 from dotenv import load_dotenv
 from google import genai
 import requests
+import streamlit as st
 
 load_dotenv()
 
@@ -122,19 +123,18 @@ def hapus_semua_data_tahun(nama_survei, tahun):
 
 # ========== FUNGSI GEMINI (DIPERBAIKI) ==========
 def minta_interpretasi_gemini(ringkasan_data, nama_survei):
-    # API Key dari OpenRouter
-    api_key = "sk-or-v1-947...f07"  # Ganti dengan API key aslimu
-
-    # URL endpoint OpenRouter
+    # Ambil API Key dari Streamlit secrets
+    api_key = st.secrets["OPENROUTER_API_KEY"]
+    
     url = "https://openrouter.ai/api/v1/chat/completions"
-
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
+    
     data = {
-        "model": "openrouter/free",  # Model gratis yang otomatis dipilihkan
+        "model": "openrouter/free",   # model gratis
         "messages": [
             {
                 "role": "user",
@@ -142,10 +142,10 @@ def minta_interpretasi_gemini(ringkasan_data, nama_survei):
             }
         ]
     }
-
+    
     try:
         response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()  # Cek apakah ada error
+        response.raise_for_status()
         result = response.json()
         return result['choices'][0]['message']['content']
     except Exception as e:

@@ -123,15 +123,15 @@ def hapus_semua_data_tahun(nama_survei, tahun):
 def minta_interpretasi_gemini(ringkasan_data, nama_survei):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        return "API key tidak ditemukan."
+        return "API key tidak ditemukan. Setel environment variable GOOGLE_API_KEY."
     client = genai.Client(api_key=api_key)
     try:
         response = client.models.generate_content(
-            model='models/gemma-4-31b-it',  # <-- ganti ke model ini
-            contents=f"Analisis singkat (3 kalimat) data {nama_survei}: {ringkasan_data}"
+            model='gemini-2.0-flash',
+            contents=f"Berikan analisis super singkat (maksimal 3 kalimat) untuk data {nama_survei}. "
+                     f"Langsung ke poin utamanya saja, jangan pakai pembukaan basa-basi. "
+                     f"Data: {ringkasan_data}"
         )
         return response.text
     except Exception as e:
-        if "429" in str(e):
-            return "⚠️ Kuota API Gemini habis. Coba lagi nanti atau ganti API key."
-        return f"Gagal: {str(e)}"
+        return f"Gagal panggil AI: {str(e)}"

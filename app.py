@@ -358,20 +358,17 @@ elif st.session_state.halaman == "Visualisasi":
 
     # --- FUNGSI MEMUAT SEMUA DATA (OTOMATIS) ---
     def load_all_data(survey_name):
-        folder = os.path.join("data_survei", survey_name)
-        all_dfs = []
-        for fname in os.listdir(folder):
-            if fname.endswith(".parquet"):
-                tahun = fname.replace(".parquet", "")
-                df = pd.read_parquet(os.path.join(folder, fname))
-                meta = core.ambil_metadata_tahunan(survey_name, tahun)
-                alias_map = {k: v.get('alias', k) for k, v in meta.items()}
-                df = df.rename(columns=alias_map)
-                df['Tahun'] = str(tahun)
-                all_dfs.append(df)
-        if all_dfs:
-            return pd.concat(all_dfs, ignore_index=True)
-        return pd.DataFrame()
+        # Gunakan fungsi standar dari core_logic yang sudah mengembalikan kolom Tahun, Kategori, Nilai
+        df = core.ambil_semua_data(survey_name)
+        if df.empty:
+            return pd.DataFrame()
+        # Pastikan tipe data sesuai
+        df['Tahun'] = df['Tahun'].astype(str)
+        df['Kategori'] = df['Kategori'].astype(str)
+        df['Nilai'] = pd.to_numeric(df['Nilai'], errors='coerce')
+        # Hapus baris dengan Nilai NaN atau Kategori kosong
+        df = df.dropna(subset=['Nilai', 'Kategori'])
+        return df
 
     # --- RENDER GRAFIK ---
     charts = st.session_state.viz_state["charts"]

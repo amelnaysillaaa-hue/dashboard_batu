@@ -58,7 +58,7 @@ def simpan_data_upload(nama_survei, file, tahun):
 def simpan_data_upload_auto(nama_survei, file_upload):
     """
     Upload file dan otomatis deteksi kolom kategori, nilai, dan tahun.
-    Mendukung file dengan banyak kolom, serta angka desimal dengan koma.
+    Mendukung file dengan banyak kolom, termasuk desimal dengan koma.
     """
     ext = file_upload.name.split('.')[-1].lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
@@ -67,7 +67,7 @@ def simpan_data_upload_auto(nama_survei, file_upload):
 
     try:
         if ext == 'csv':
-            df = pd.read_csv(tmp_path, thousands=None, decimal=',')  # tambahkan decimal=','
+            df = pd.read_csv(tmp_path)
         elif ext == 'xlsx':
             df = pd.read_excel(tmp_path)
         elif ext == 'sav':
@@ -80,24 +80,22 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     finally:
         os.unlink(tmp_path)
 
-    # ========== KONVERSI KOMA KE TITIK UNTUK SEMUA KOLOM NUMERIK ==========
-    # Untuk file Excel/SPSS, kita tetap perlu konversi manual karena read_excel tidak punya parameter decimal
-    def convert_comma_to_dot(df):
-        for col in df.columns:
-            if df[col].dtype == 'object':
-                # Coba ubah ke numerik dengan terlebih dahulu mengganti koma jadi titik
-                try:
-                    # Jika kolom berisi string dengan koma, ganti ke titik lalu konversi
-                    converted = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='ignore')
-                    if converted.notna().any():
-                        df[col] = converted
-                except:
-                    pass
-        return df
-    
-    df = convert_comma_to_dot(df)
+    # --- KONVERSI KOMA MENJADI TITIK UNTUK SEMUA KOLOM ---
+    def convert_comma_to_dot(series):
+        if series.dtype == 'object':
+            # Coba ubah string dengan koma menjadi float
+            try:
+                # Ganti koma dengan titik, lalu konversi ke numeric
+                converted = pd.to_numeric(series.str.replace(',', '.', regex=False), errors='ignore')
+                if converted.notna().any():
+                    return converted
+            except:
+                pass
+        return series
 
-    # ========== DETEKSI KOLOM ==========
+    for col in df.columns:
+        df[col] = convert_comma_to_dot(df[col])
+
     # Helper functions
     def is_categorical(col):
         return df[col].dtype in ['object', 'category'] or str(df[col].dtype) == 'category'
@@ -119,7 +117,7 @@ def simpan_data_upload_auto(nama_survei, file_upload):
                     pass
         return False
 
-    # 1. Deteksi kolom tahun
+    # 1. Deteksi kolom tahun (jika ada kolom khusus tahun)
     tahun_col = None
     for col in df.columns:
         if is_year_column(col):
@@ -143,7 +141,7 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     if kategori_col is None:
         kategori_col = df.columns[0]
 
-    # 3. Deteksi kolom nilai
+    # 3. Deteksi kolom nilai (numerik, bukan tahun & bukan kategori)
     nilai_col = None
     for col in df.columns:
         if col not in [tahun_col, kategori_col] and is_numeric(col):
@@ -161,12 +159,15 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     os.makedirs(folder, exist_ok=True)
 
     if tahun_col is not None:
-        # Format panjang
+        # Format panjang: ada kolom tahun
         df[tahun_col] = df[tahun_col].astype(str)
         tahun_unik = df[tahun_col].unique()
         for th in tahun_unik:
             df_th = df[df[tahun_col] == th][[kategori_col, nilai_col]].copy()
             df_th.columns = ['Kategori', 'Nilai']
+            df_th = df_th.dropna(subset=['Nilai'])
+            # Pastikan Nilai bertipe float
+            df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
             df_th = df_th.dropna(subset=['Nilai'])
             path_file = os.path.join(folder, f"{th}.parquet")
             df_th.to_parquet(path_file, index=False)
@@ -187,6 +188,9 @@ def simpan_data_upload_auto(nama_survei, file_upload):
                 df_th = df[[kategori_col, col]].copy()
                 df_th.columns = ['Kategori', 'Nilai']
                 df_th = df_th.dropna(subset=['Nilai'])
+                # Pastikan Nilai bertipe float
+                df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
+                df_th = df_th.dropna(subset=['Nilai'])
                 path_file = os.path.join(folder, f"{yr}.parquet")
                 df_th.to_parquet(path_file, index=False)
             return True, f"✅ Berhasil! {len(year_candidates)} tahun data tersimpan (format lebar)."
@@ -194,6 +198,8 @@ def simpan_data_upload_auto(nama_survei, file_upload):
             # Tidak ada petunjuk tahun, simpan sebagai tahun 2024
             df_th = df[[kategori_col, nilai_col]].copy()
             df_th.columns = ['Kategori', 'Nilai']
+            df_th = df_th.dropna(subset=['Nilai'])
+            df_th['Nilai'] = pd.to_numeric(df_th['Nilai'], errors='coerce')
             df_th = df_th.dropna(subset=['Nilai'])
             path_file = os.path.join(folder, "2024.parquet")
             df_th.to_parquet(path_file, index=False)

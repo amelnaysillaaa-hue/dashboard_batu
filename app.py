@@ -250,7 +250,7 @@ if st.session_state.halaman == "Landing":
     st.markdown("Dashboard ini dirancang untuk mempermudah pembuatan grafik hasil survei secara otomatis.")
     st.info(f"Terdapat **{len(daftar)}** jenis survei yang tersimpan dalam sistem.")
 
-# ==================== HALAMAN VISUALISASI (DIPERBAIKI) ====================
+# ==================== HALAMAN VISUALISASI ====================
 elif st.session_state.halaman == "Visualisasi":
     snama = st.session_state.survei_aktif
     if not snama:
@@ -281,14 +281,11 @@ elif st.session_state.halaman == "Visualisasi":
             tahun_list = sorted([f.replace(".parquet", "") for f in os.listdir(path_s) if f.endswith(".parquet")])
             for th in tahun_list:
                 df_th = pd.read_parquet(os.path.join(path_s, f"{th}.parquet"))
-                # Pastikan kolom sesuai: Kategori, Nilai (tahun diambil dari nama file)
                 if 'Kategori' in df_th.columns and 'Nilai' in df_th.columns:
                     df_th = df_th[['Kategori', 'Nilai']].copy()
                     df_th['Tahun'] = th
                     all_data.append(df_th)
                 else:
-                    # Fallback jika struktur berbeda (misal dari upload)
-                    # Asumsikan kolom pertama kategori, kedua nilai
                     if len(df_th.columns) >= 2:
                         df_th = df_th.iloc[:, :2].copy()
                         df_th.columns = ['Kategori', 'Nilai']
@@ -296,13 +293,12 @@ elif st.session_state.halaman == "Visualisasi":
                         all_data.append(df_th)
         if all_data:
             df_combined = pd.concat(all_data, ignore_index=True)
-            df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]  # urutan kolom
+            df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]
             
-            # Tampilkan data editor
             edited_df = st.data_editor(
                 df_combined,
                 use_container_width=True,
-                num_rows="dynamic",  # user bisa tambah/hapus baris
+                num_rows="dynamic",
                 column_config={
                     "Tahun": st.column_config.NumberColumn("Tahun", min_value=2000, max_value=2030, step=1),
                     "Kategori": st.column_config.TextColumn("Kategori"),
@@ -311,18 +307,13 @@ elif st.session_state.halaman == "Visualisasi":
                 key=f"data_editor_{snama}"
             )
             
-            # Tombol simpan perubahan
             col_save, col_refresh = st.columns(2)
             with col_save:
                 if st.button("💾 Simpan Semua Perubahan", type="primary", use_container_width=True):
-                    # Hapus semua file parquet lama
                     for th in tahun_list:
                         core.hapus_semua_data_tahun(snama, th)
-                    # Simpan ulang berdasarkan edited_df, pisahkan per tahun
                     for tahun, group in edited_df.groupby('Tahun'):
-                        # Ambil kolom Kategori dan Nilai
                         df_to_save = group[['Kategori', 'Nilai']].copy()
-                        # Simpan ke file
                         folder = os.path.join("data_survei", snama)
                         os.makedirs(folder, exist_ok=True)
                         file_path = os.path.join(folder, f"{tahun}.parquet")
@@ -337,14 +328,13 @@ elif st.session_state.halaman == "Visualisasi":
         else:
             st.info("Belum ada data. Silakan tambah data di atas atau upload file.")
 
-    # --- UNGGAH DATA (tetap ada sebagai alternatif) ---
+    # --- UNGGAH DATA (OTOMATIS DETEKSI TAHUN) ---
     col_up, col_sv = st.columns([3, 1])
-    with col_up.expander("⬆️ Unggah Data Baru (CSV/Excel/SAV)"):
-        f_up = st.file_uploader("Pilih file", type=['csv', 'sav', 'xlsx'], key="viz_up")
-        th_up = st.number_input("Tahun", 2020, 2030, 2026, key="th_up")
+    with col_up.expander("⬆️ Unggah Data Baru (CSV/Excel/SAV) - Otomatis deteksi tahun"):
+        f_up = st.file_uploader("Pilih file (CSV, Excel, SPSS)", type=['csv', 'sav', 'xlsx'], key="viz_up")
         if st.button("Konfirmasi Unggah", width='stretch'):
             if f_up:
-                sukses, pesan = core.simpan_data_upload(snama, f_up, th_up)
+                sukses, pesan = core.simpan_data_upload_auto(snama, f_up)
                 if sukses:
                     st.session_state.upload_sukses = sukses
                     st.session_state.upload_pesan = pesan
@@ -366,7 +356,6 @@ elif st.session_state.halaman == "Visualisasi":
             if fname.endswith(".parquet"):
                 tahun = fname.replace(".parquet", "")
                 df = pd.read_parquet(os.path.join(folder, fname))
-                # Terapkan alias metadata
                 meta = core.ambil_metadata_tahunan(survey_name, tahun)
                 alias_map = {k: v.get('alias', k) for k, v in meta.items()}
                 df = df.rename(columns=alias_map)
@@ -391,7 +380,6 @@ elif st.session_state.halaman == "Visualisasi":
                         if id_unik not in st.session_state:
                             st.session_state[id_unik] = ch.get('interpretasi_saved', "")
 
-                        # ================= PENGATURAN GRAFIK =================
                         with st.expander(f"⚙️ Pengaturan Grafik {idx+1}", expanded=not ch.get('has_config', False)):
                             n_title = st.text_input("Judul Grafik", value=ch.get('title', f"Grafik {idx+1}"), key=f"title_{idx}")
                             n_type = st.selectbox("Tipe Grafik", ["Bar", "Line", "Box"],
@@ -401,18 +389,15 @@ elif st.session_state.halaman == "Visualisasi":
                             n_agg = st.selectbox("Fungsi Agregasi", list_agg,
                                                  index=list_agg.index(ch.get('agg', 'Jumlah (Count)')),
                                                  key=f"agg_{idx}")
-                            # Switch row/col
                             mode_grafik = st.radio("🔄 Tampilan:",
                                                    ["Tahun di Sumbu X (Warna = Kategori)",
                                                     "Kategori di Sumbu X (Warna = Tahun)"],
                                                    horizontal=True, key=f"switch_{idx}")
-                            # Orientasi untuk Bar
                             n_orientasi = "Vertical"
                             if n_type == "Bar":
                                 n_orientasi = st.selectbox("↔️ Orientasi Batang", ["Vertical", "Horizontal"],
                                                            index=0 if ch.get('orientasi', 'Vertical') == "Vertical" else 1,
                                                            key=f"orient_{idx}")
-                            # Tampilan font & warna
                             st.markdown("**🎨 Tampilan**")
                             list_font = ["Arial", "Courier New", "Verdana", "Times New Roman", "Comic Sans MS", "Lexend", "Hanken Grotesk", "Montserrat", "Poppins", "Roboto", "Open Sans"]
                             n_font = st.selectbox("Font", list_font,
@@ -421,7 +406,6 @@ elif st.session_state.halaman == "Visualisasi":
                             n_size = st.number_input("Ukuran Font", 8, 24, int(ch.get('font_size', 12)), key=f"size_{idx}")
                             c_txt = st.color_picker("Warna Teks", ch.get('color_txt', '#000000'), key=f"txtcol_{idx}")
                             c_bg = st.color_picker("Warna Latar", ch.get('color_bg', '#FFFFFF'), key=f"bgcol_{idx}")
-                            # Posisi Legend
                             st.markdown("**📍 Posisi Legend**")
                             legend_position = st.selectbox(
                                 "Pilih posisi legend:",
@@ -429,7 +413,6 @@ elif st.session_state.halaman == "Visualisasi":
                                 index=["Atas (horizontal)", "Bawah (horizontal)", "Kanan (vertikal)", "Kiri (vertikal)"].index(ch.get('legend_position', "Atas (horizontal)")),
                                 key=f"legend_pos_{idx}"
                             )
-                            # Pengaturan interpretasi
                             st.markdown("**📝 Teks Interpretasi**")
                             use_border = st.checkbox("Pakai kotak pembatas", value=ch.get('ai_border', False), key=f"border_{idx}")
                             if use_border:
@@ -444,7 +427,6 @@ elif st.session_state.halaman == "Visualisasi":
                                                    key=f"align_{idx}")
                             v_lebar = st.slider("Lebar kotak teks", 200, 1000, int(ch.get('ai_w', 500)), key=f"aiw2_{idx}")
 
-                            # Simpan konfigurasi
                             ch.update({
                                 'title': n_title, 'type': n_type, 'agg': n_agg,
                                 'orientasi': n_orientasi, 'mode_switch': mode_grafik,
@@ -460,27 +442,22 @@ elif st.session_state.halaman == "Visualisasi":
                                 charts.pop(idx)
                                 st.rerun()
 
-                        # ================= MEMUAT & PROSES DATA =================
                         df_full = load_all_data(snama)
                         if df_full.empty:
                             st.info("Belum ada data. Silakan tambah data manual atau upload file.")
                             continue
 
-                        # Deteksi kolom kategori dan nilai
                         numeric_cols = df_full.select_dtypes(include=['number']).columns.tolist()
                         if not numeric_cols:
                             st.error("Tidak ada kolom numerik dalam data.")
                             continue
-                        # Kolom nilai default: kolom numerik pertama
                         nilai_col = numeric_cols[0]
-                        # Kolom kategorik: kolom non-numerik selain 'Tahun'
                         categorical_cols = [c for c in df_full.columns if c not in numeric_cols and c != 'Tahun']
                         if not categorical_cols:
                             st.error("Tidak ada kolom kategorik (selain Tahun).")
                             continue
                         kategori_col = categorical_cols[0]
 
-                        # Persiapkan data dalam format baku: Kategori, Tahun, Nilai
                         df_plot = df_full[[kategori_col, 'Tahun', nilai_col]].copy()
                         df_plot = df_plot.rename(columns={kategori_col: 'Kategori', nilai_col: 'Nilai'})
                         df_plot['Tahun'] = df_plot['Tahun'].astype(str)
@@ -488,7 +465,6 @@ elif st.session_state.halaman == "Visualisasi":
                         df_plot['Nilai'] = pd.to_numeric(df_plot['Nilai'], errors='coerce')
                         df_plot = df_plot.dropna(subset=['Nilai'])
 
-                        # Agregasi sesuai pilihan
                         agg_func = ch['agg']
                         if "Count" in agg_func:
                             df_group = df_plot.groupby(['Tahun', 'Kategori']).size().reset_index(name='Nilai')
@@ -499,17 +475,15 @@ elif st.session_state.halaman == "Visualisasi":
                         elif "Mean" in agg_func:
                             df_group = df_plot.groupby(['Tahun', 'Kategori'])['Nilai'].mean().reset_index()
                             label_y = "Rata-rata"
-                        else:  # Nilai Asli
+                        else:
                             df_group = df_plot[['Tahun', 'Kategori', 'Nilai']].copy()
                             label_y = "Nilai"
 
-                        # Switch row/col
                         if ch.get('mode_switch', "Tahun di Sumbu X (Warna = Kategori)") == "Tahun di Sumbu X (Warna = Kategori)":
                             x_var, color_var = 'Tahun', 'Kategori'
                         else:
                             x_var, color_var = 'Kategori', 'Tahun'
 
-                        # Warna kustom (opsional)
                         dict_warna = ch.get('color_map', {})
                         unique_kat = df_group[color_var].unique()
                         if len(unique_kat) > 0:
@@ -529,32 +503,28 @@ elif st.session_state.halaman == "Visualisasi":
                             st.caption("Tidak ada kategori untuk diwarnai.")
                         color_map_aktif = ch.get('color_map', {})
 
-                        # Buat figure
                         if n_type == "Bar":
                             if n_orientasi == "Horizontal":
                                 fig = px.bar(df_group, x='Nilai', y=x_var, color=color_var,
                                              orientation='h', barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 50
-                                max_val = df_group['Nilai'].max()
                                 fig.update_traces(marker=dict(cornerradius=10))
                             else:
                                 fig = px.bar(df_group, x=x_var, y='Nilai', color=color_var,
                                              barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 80
-                                max_val = df_group['Nilai'].max()
                                 fig.update_traces(marker=dict(cornerradius=10))
                         elif n_type == "Line":
                             fig = px.line(df_group, x=x_var, y='Nilai', color=color_var,
                                           markers=True, color_discrete_map=color_map_aktif)
                             l_margin = 80
-                        else:  # Box
+                        else:
                             fig = px.box(df_group, x=x_var, y='Nilai', color=color_var,
                                          color_discrete_map=color_map_aktif)
                             l_margin = 80
 
-                        # Anotasi AI
                         isi_ai = st.session_state.get(id_unik, "")
                         posisi_ai = st.session_state.get(f"pos_ai_{idx}", "Bawah")
                         bottom_margin = 80
@@ -582,44 +552,41 @@ elif st.session_state.halaman == "Visualisasi":
                             )
                             bottom_margin = 170
 
-                        # Layout
                         legend_pos = ch.get('legend_position', "Atas (horizontal)")
                         if legend_pos == "Atas (horizontal)":
                             legend_settings = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None)
                             margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin)
                         elif legend_pos == "Bawah (horizontal)":
                             legend_settings = dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, title=None)
-                            # Tambah margin bawah agar legend tidak numpuk
                             bottom_margin_adj = max(bottom_margin, 100)
                             margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin_adj)
                         elif legend_pos == "Kanan (vertikal)":
                             legend_settings = dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02, title=None)
-                            margin_dict = dict(l=l_margin, r=120, t=90, b=bottom_margin)  # tambah margin kanan
+                            margin_dict = dict(l=l_margin, r=120, t=90, b=bottom_margin)
                         elif legend_pos == "Kiri (vertikal)":
                             legend_settings = dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.02, title=None)
-                            margin_dict = dict(l=120, r=50, t=90, b=bottom_margin)  # tambah margin kiri
+                            margin_dict = dict(l=120, r=50, t=90, b=bottom_margin)
                         else:
                             legend_settings = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None)
                             margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin)
 
                         fig.update_layout(
                             title={'text': wrap_judul(n_title, width=30), 'x': 0.5, 'y': 0.95,
-                                'xanchor': 'center', 'yanchor': 'top',
-                                'font': {'family': n_font, 'size': n_size + 4, 'color': c_txt}},
+                                   'xanchor': 'center', 'yanchor': 'top',
+                                   'font': {'family': n_font, 'size': n_size + 4, 'color': c_txt}},
                             margin=margin_dict,
                             plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor=c_bg,
                             font=dict(family=n_font, size=n_size, color=c_txt),
                             legend=legend_settings,
                             xaxis=dict(tickangle=0, showgrid=False, linecolor=c_txt,
-                                    tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
+                                       tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
                             yaxis=dict(tickformat=',.2f', gridcolor='rgba(128,128,128,0.1)',
-                                    showline=False, zeroline=False,
-                                    tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
+                                       showline=False, zeroline=False,
+                                       tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
-                        # Kontrol interaktif: posisi narasi, Gemini, edit teks
                         st.write("---")
                         col_pos, col_gem = st.columns(2)
                         new_posisi = col_pos.radio("📍 Posisi Narasi:", ["Bawah", "Dalam Grafik"],

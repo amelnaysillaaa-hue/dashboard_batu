@@ -491,41 +491,39 @@ elif st.session_state.halaman == "Visualisasi":
                                 # --- 1. PROSES DATA ---
                                 dfs_local = []
                                 for y in sel_years:
-                                    try:
-                                        df_y = pd.read_parquet(os.path.join(path_s, f"{y}.parquet"))
-                                        km = core.ambil_metadata_tahunan(snama, y)
-                                        peta = {k: v.get('alias', k) for k, v in km.items()}
-                                        
-                                        # Rename kolom sesuai alias agar user familiar
-                                        df_y = df_y.rename(columns=peta)
-                                        df_y['Tahun_File'] = str(y) # Paksa string agar tidak jadi angka kontinu
-                                        dfs_local.append(df_y)
-                                    except:
-                                        continue
+                                    df_y = pd.read_parquet(os.path.join(path_s, f"{y}.parquet"))
+                                    km = core.ambil_metadata_tahunan(snama, y)
+                                    peta = {k: v.get('alias', k) for k, v in km.items()}
+                                    df_y = df_y.rename(columns=peta)
+                                    df_y['_Tahun_File_'] = y
+                                    dfs_local.append(df_y)
+                                    new_color_map = {}
 
-                                if dfs_local:
-                                    df_plot_induk = pd.concat(dfs_local, ignore_index=True)
-                                    
-                                    # Ambil nama kolom yang sudah di-alias
-                                    x_f = peta.get(n_x, n_x)
-                                    y_f = peta.get(n_y, n_y) if n_y else None
+                                df_plot = pd.concat(dfs_local, ignore_index=True)
+                                x_f = peta.get(n_x, n_x)
+                                y_f = peta.get(n_y, n_y) if n_y else None
+                                df_plot[x_f] = df_plot[x_f].astype(str)
+
+                                if y_f and n_agg != "Nilai Asli (Value)":
+                                    df_plot[y_f] = pd.to_numeric(df_plot[y_f], errors='coerce')
+
+                                df_clean = df_plot.dropna(subset=[y_f] if y_f else [])
 
                                 # --- 2. AGREGASI ---
                                 if "Count" in n_agg:
-                                    res = df_plot_induk.groupby(['Tahun_File', x_f]).size().reset_index(name='Nilai')
-                                    label_y_desc = f"Jumlah {x_f}"
-                                elif "Sum" in n_agg and y_f:
-                                    df_plot_induk[y_f] = pd.to_numeric(df_plot_induk[y_f], errors='coerce')
-                                    res = df_plot_induk.groupby(['Tahun_File', x_f])[y_f].sum().reset_index(name='Nilai')
+                                    res = df_clean.groupby(['_Tahun_File_', x_f]).size().reset_index(name='Nilai')
+                                    label_y_desc = f"Frekuensi {x_f}"
+                                elif "Sum" in n_agg:
+                                    res = df_clean.groupby(['_Tahun_File_', x_f])[y_f].sum().reset_index(name='Nilai')
                                     label_y_desc = f"Total {y_f}"
-                                elif "Mean" in n_agg and y_f:
-                                    df_plot_induk[y_f] = pd.to_numeric(df_plot_induk[y_f], errors='coerce')
-                                    res = df_plot_induk.groupby(['Tahun_File', x_f])[y_f].mean().reset_index(name='Nilai')
+                                elif "Mean" in n_agg:
+                                    res = df_clean.groupby(['_Tahun_File_', x_f])[y_f].mean().reset_index(name='Nilai')
                                     label_y_desc = f"Rata-rata {y_f}"
-                                else: # Nilai Asli (Value)
-                                    res = df_plot_induk[['Tahun_File', x_f, y_f]].copy()
-                                    res.columns = ['Tahun_File', x_f, 'Nilai']
+                                else:
+                                    res = df_clean[['_Tahun_File_', x_f, y_f]].copy().rename(columns={y_f: 'Nilai'})
                                     label_y_desc = y_f
+
+                                res = res.sort_values(by=x_f)
 
                                 # --- 3. PREPARASI TAMPILAN & STYLE ---
                                 n_orientasi = ch.get('orientasi', "Vertical")
@@ -541,75 +539,80 @@ elif st.session_state.halaman == "Visualisasi":
                                 h_pake = 450
                                 b_marg = 120 if (isi_ai and opt_posisi == "Dalam Grafik") else 80
 
+                                # Reshape data untuk Plotly (Tahun sebagai Legend)
+                                kolom_bersih = [c for c in df_clean.columns if c not in ['_Tahun_File_']]
+                                df_fix = df_clean[kolom_bersih]
+                                df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
+                                df_tab.columns.values[0] = "Jenis Harga"
+                                res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
 
 
                                 # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
                                 # 1. Rapikan Kolom secara Langsung (Pasti Aman)
                                 # Dari hasil melt di atas, urutannya pasti: ["Jenis Harga", "Tahun", "Nilai Ekonomi"]
-                                res_plot = res.copy()
-                                res_plot = res_plot.rename(columns={'Tahun_File': 'Tahun', x_f: 'Kategori'})
+                                res_plot = res_melt.copy()
+                                res_plot.columns = ['Kategori', 'Tahun', 'Nilai']
+                                
+                                # Paksa jadi string biar sinkron sama warna kustom
                                 res_plot['Kategori'] = res_plot['Kategori'].astype(str)
                                 res_plot['Tahun'] = res_plot['Tahun'].astype(str)
 
-
                                 # 2. MUNCULKAN COLOR PICKER DI SINI
-                                st.write("---")
-                                st.write("🎨 *Warna Tiap Kategori:*")
+                                st.write("🎨 **Warna Tiap Kategori:**")
                                 dict_warna = ch.get('color_map', {})
-                                list_kat = res_plot['Kategori'].unique()
+                                list_batang = res_plot['Kategori'].unique()
                                 
                                 new_color_map = {}
-                                cols_w = st.columns(min(len(list_kat), 4))
-                                for i, kat_nama in enumerate(list_kat):
-                                    with cols_w[i % 4]:
-                                        w_def = dict_warna.get(kat_nama, "#636EFA")
-                                        w_pilih = st.color_picker(f"{kat_nama}", w_def, key=f"cp_final_{idx}_{i}")
-                                        new_color_map[kat_nama] = w_pilih
-
-                                # Simpan warna ke state jika berubah
+                                cols_warna = st.columns(min(len(list_batang), 4))
+                                
+                                for i, nama_batang in enumerate(list_batang):
+                                    with cols_warna[i % 4]:
+                                        label_batang = str(nama_batang)
+                                        warna_def = dict_warna.get(label_batang, "#636EFA")
+                                        warna_pilih = st.color_picker(f"{label_batang}", warna_def, key=f"cp_final_{idx}_{i}")
+                                        new_color_map[label_batang] = warna_pilih
+                                
+                                # Simpan warna kalau ada perubahan
                                 if new_color_map != dict_warna:
                                     ch['color_map'] = new_color_map
 
-                                # --- 5. SWITCH TAMPILAN & PLOTTING ---
+                                # 3. FITUR SWITCH ROW/COLUMN
                                 mode_grafik = st.radio("🔄 Switch Tampilan:", 
-                                                    ["Tahun di Sumbu X", "Kategori di Sumbu X"], 
-                                                    horizontal=True, key=f"switch_rowcol_{idx}")
+                                                       ["Tahun di Sumbu X (Warna = Kategori)", "Kategori di Sumbu X (Warna = Tahun)"], 
+                                                       horizontal=True, key=f"switch_rowcol_{idx}")
                                 
-                                if mode_grafik == "Tahun di Sumbu X":
+                                if mode_grafik == "Tahun di Sumbu X (Warna = Kategori)":
                                     var_x, var_color = 'Tahun', 'Kategori'
-                                    map_warna_aktif = new_color_map
+                                    map_warna_aktif = new_color_map # Pakai custom warna kamu!
                                 else:
                                     var_x, var_color = 'Kategori', 'Tahun'
-                                    map_warna_aktif = {} # Pakai warna default plotly untuk tahun
+                                    map_warna_aktif = {} # Balik ke default kalau warnain tahun
 
-                                # Gambar Grafiknya
+                                # 4. PLOTTING GRAFIK
                                 if n_type == "Bar":
-                                    fig = px.bar(res_plot, x=var_x, y='Nilai', color=var_color,
-                                                barmode='group', text_auto='.2f',
-                                                color_discrete_map=map_warna_aktif,
-                                                title=n_title)
-                                    fig.update_traces(marker=dict(cornerradius=10))
+                                    if n_orientasi == "Horizontal":
+                                        fig = px.bar(res_plot, x='Nilai', y=var_x, color=var_color,
+                                                    orientation='h', barmode='group', text_auto='.2f',
+                                                    color_discrete_map=map_warna_aktif)
+                                        fig.update_yaxes(autorange="reversed")
+                                        l_pake = 200
+                                    else:
+                                        fig = px.bar(res_plot, x=var_x, y='Nilai', color=var_color,
+                                                    barmode='group', text_auto='.2f',
+                                                    color_discrete_map=map_warna_aktif)
+                                        fig.update_traces(marker=dict(cornerradius=10))
+                                        l_pake = 80
+
                                 elif n_type == "Line":
                                     fig = px.line(res_plot, x=var_x, y='Nilai', color=var_color,
-                                                markers=True, color_discrete_map=map_warna_aktif,
-                                                title=n_title)
-                                else: # Box
+                                                markers=True, color_discrete_map=map_warna_aktif)
+                                    fig.update_xaxes(type='category') 
+                                    l_pake = 80
+
+                                else:  # Box Plot
                                     fig = px.box(res_plot, x=var_x, y='Nilai', color=var_color,
-                                                color_discrete_map=map_warna_aktif,
-                                                title=n_title)
-
-                                # --- 6. FINAL TOUCH (FONT & TAMPILAN) ---
-                                fig.update_layout(
-                                    paper_bgcolor=c_bg,
-                                    plot_bgcolor=c_bg,
-                                    font=dict(family=n_font, size=n_size, color=c_txt),
-                                    yaxis_title=label_y_desc
-                                )
-                                
-                                st.plotly_chart(fig, use_container_width=True)
-
-                            except Exception as e:
-                                st.warning(f"Pilih variabel yang sesuai untuk menghitung {n_agg}. Error: {e}")
+                                                color_discrete_map=map_warna_aktif)
+                                    l_pake = 80
 
                                 # Update spacing biar rapi
                                 fig.update_layout(bargap=0.1, bargroupgap=0.05)
@@ -652,7 +655,7 @@ elif st.session_state.halaman == "Visualisasi":
                                     },
                                     # t=170 adalah jarak agar grafik turun ke bawah, tidak nabrak judul
                                     # r=50 memperkecil margin kanan agar grafik melebar ke samping
-                                    margin=dict(l=50, r=50, t=90, b=b_marg),
+                                    margin=dict(l=l_pake, r=50, t=90, b=b_marg),
                                    
                                     plot_bgcolor='rgba(0,0,0,0)', # Bikin background area grafik transparan (bersih)
                                     paper_bgcolor=c_bg,           # Warna kertas sesuai pilihan session state

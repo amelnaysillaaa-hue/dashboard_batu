@@ -438,7 +438,7 @@ elif st.session_state.halaman == "Visualisasi":
                                 v_brd_width = st.number_input("Tebal garis", 0, 5, ch.get('ai_line_w', 1), key=f"aiw_{idx}")
                             else:
                                 c_brd_bg, c_brd_line, v_brd_width = "#FFFFFF", "#000000", 1
-                            v_jarak = st.slider("Jarak teks dari grafik (Y)", -0.5, -0.05, float(ch.get('ai_y', -0.2)), key=f"aiy_{idx}")
+                            v_jarak = st.slider("Jarak teks dari grafik (Y)", -0.8, -0.05, float(ch.get('ai_y', -0.2)), key=f"aiy_{idx}")
                             v_align = st.selectbox("Rata teks", ["left", "center", "right"],
                                                    index=["left", "center", "right"].index(ch.get('ai_align', 'left')),
                                                    key=f"align_{idx}")
@@ -467,8 +467,6 @@ elif st.session_state.halaman == "Visualisasi":
                             continue
 
                         # Deteksi kolom kategori dan nilai
-                        # Asumsikan data dalam format panjang: minimal ada kolom 'Tahun', satu kolom kategorik, satu kolom numerik
-                        # Cari kolom numerik (float/int)
                         numeric_cols = df_full.select_dtypes(include=['number']).columns.tolist()
                         if not numeric_cols:
                             st.error("Tidak ada kolom numerik dalam data.")

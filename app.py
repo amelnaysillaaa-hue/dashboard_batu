@@ -484,17 +484,21 @@ elif st.session_state.halaman == "Visualisasi":
                         # Warna kustom (opsional)
                         dict_warna = ch.get('color_map', {})
                         unique_kat = df_group[color_var].unique()
-                        with st.expander("🎨 Warna kustom (opsional)"):
-                            new_color_map = {}
-                            cols_warna = st.columns(min(len(unique_kat), 4))
-                            for i, kat in enumerate(unique_kat):
-                                with cols_warna[i % 4]:
-                                    warna_def = dict_warna.get(kat, "#636EFA")
-                                    warna_pilih = st.color_picker(f"{kat}", warna_def, key=f"cp_{idx}_{i}")
-                                    new_color_map[kat] = warna_pilih
-                            if new_color_map != dict_warna:
-                                ch['color_map'] = new_color_map
-                                st.rerun()
+                        if len(unique_kat) > 0:
+                            with st.expander("🎨 Warna kustom (opsional)"):
+                                new_color_map = {}
+                                n_cols = min(len(unique_kat), 4)
+                                cols_warna = st.columns(n_cols)
+                                for i, kat in enumerate(unique_kat):
+                                    with cols_warna[i % n_cols]:
+                                        warna_def = dict_warna.get(kat, "#636EFA")
+                                        warna_pilih = st.color_picker(f"{kat}", warna_def, key=f"cp_{idx}_{i}")
+                                        new_color_map[kat] = warna_pilih
+                                if new_color_map != dict_warna:
+                                    ch['color_map'] = new_color_map
+                                    st.rerun()
+                        else:
+                            st.caption("Tidak ada kategori untuk diwarnai.")
                         color_map_aktif = ch.get('color_map', {})
 
                         # Buat figure

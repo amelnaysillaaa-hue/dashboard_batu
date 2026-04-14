@@ -205,6 +205,26 @@ def pop_salin_metadata():
             st.session_state.dialog_aktif = None
             st.rerun()
 
+@st.dialog("⚠️ Konfirmasi Hapus Semua Data")
+def pop_hapus_semua_data():
+    survei = st.session_state.target_hapus_semua
+    st.warning(f"Anda akan menghapus **SEMUA DATA** untuk survei **{survei.upper()}** (semua tahun).")
+    st.write("Tindakan ini **tidak dapat dibatalkan**. Data akan hilang permanen.")
+    st.write("---")
+    col1, col2 = st.columns(2)
+    if col1.button("✅ Ya, Hapus Semua", type="primary", use_container_width=True):
+        sukses, pesan = core.hapus_semua_data_survei(survei)
+        if sukses:
+            st.success(pesan)
+            st.session_state.last_loaded = None
+            st.session_state.dialog_aktif = None
+            st.rerun()
+        else:
+            st.error(pesan)
+    if col2.button("❌ Batal", use_container_width=True):
+        st.session_state.dialog_aktif = None
+        st.rerun()
+
 # Pemicu dialog
 if st.session_state.dialog_aktif == "tambah":
     pop_tambah_survei()
@@ -218,6 +238,8 @@ elif st.session_state.dialog_aktif == "hapus_dataset":
     pop_hapus_dataset_tahun()
 elif st.session_state.dialog_aktif == "salin_metadata":
     pop_salin_metadata()
+elif st.session_state.dialog_aktif == "hapus_semua_data":
+    pop_hapus_semua_data()
 
 # ==================== SIDEBAR ====================
 st.sidebar.title("🗂️ Menu Utama")
@@ -332,6 +354,10 @@ elif st.session_state.halaman == "Visualisasi":
             with col_refresh:
                 if st.button("🔄 Refresh Data", use_container_width=True):
                     st.session_state.last_loaded = None
+                st.markdown("---")
+                if st.button("🗑️ Hapus Semua Data (Semua Tahun)", type="secondary", use_container_width=True):
+                    st.session_state.target_hapus_semua = snama
+                    st.session_state.dialog_aktif = "hapus_semua_data"
                     st.rerun()
         else:
             st.info("Belum ada data. Silakan tambah data di atas atau upload file.")

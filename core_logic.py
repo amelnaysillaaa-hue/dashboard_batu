@@ -231,6 +231,21 @@ def hapus_dataset_tahun(nama_survei, tahun):
         return False, "File tidak ditemukan."
     except Exception as e:
         return False, f"Gagal menghapus: {str(e)}"
+    
+def hapus_semua_data_survei(nama_survei):
+    """Menghapus seluruh data (semua tahun) untuk survei tertentu, termasuk metadata dan konfigurasi."""
+    import shutil
+    folder = os.path.join(BASE_DIR, nama_survei)
+    if os.path.exists(folder):
+        # Hapus semua file di dalam folder
+        for item in os.listdir(folder):
+            item_path = os.path.join(folder, item)
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+        return True, f"Semua data untuk survei '{nama_survei.upper()}' berhasil dihapus."
+    return False, f"Folder survei '{nama_survei}' tidak ditemukan."
 
 # ==================== METADATA ====================
 def simpan_metadata_tahunan(nama_survei, tahun, kamus_data):

@@ -271,50 +271,71 @@ elif st.session_state.halaman == "Visualisasi":
 
     # --- FITUR INPUT DATA MANUAL (SPREADSHEET) ---
     with st.expander("📝 Input Data Manual (Isi Langsung)", expanded=False):
-        st.markdown("**Tambah data per baris:** Kategori, Tahun, Nilai")
-        col_k, col_t, col_n = st.columns(3)
-        with col_k:
-            kat_input = st.text_input("Kategori", placeholder="Contoh: Asing", key="man_kat")
-        with col_t:
-            thn_input = st.number_input("Tahun", min_value=2000, max_value=2030, value=2024, step=1, key="man_thn")
-        with col_n:
-            nilai_input = st.number_input("Nilai", value=0.0, step=0.01, format="%.2f", key="man_nilai")
-
-        col_btn1, col_btn2 = st.columns(2)
-        if col_btn1.button("➕ Tambah Data", type="primary", use_container_width=True):
-            if kat_input.strip():
-                sukses, pesan = core.tambah_data_manual(snama, thn_input, kat_input.strip(), nilai_input)
-                if sukses:
-                    st.success(pesan)
-                    st.session_state.last_loaded = None  # paksa reload data
-                    st.rerun()
-                else:
-                    st.error(pesan)
-            else:
-                st.warning("Kategori harus diisi")
-        if col_btn2.button("🗑️ Hapus Semua Data Tahun Ini", use_container_width=True):
-            sukses, pesan = core.hapus_semua_data_tahun(snama, thn_input)
-            if sukses:
-                st.success(pesan)
-                st.session_state.last_loaded = None
-                st.rerun()
-            else:
-                st.error(pesan)
-
-        # Pratinjau data yang sudah ada
+        # --- EDITABLE DATA TABLE (SEMUA TAHUN) ---
         st.markdown("---")
-        st.markdown("**📋 Data yang Tersimpan per Tahun**")
+        st.markdown("**📋 Data Semua Tahun (Klik sel untuk edit langsung)**")
+        
+        # Gabungkan semua data dari semua tahun
+        all_data = []
         if os.path.exists(path_s):
             tahun_list = sorted([f.replace(".parquet", "") for f in os.listdir(path_s) if f.endswith(".parquet")])
-            if tahun_list:
-                for th in tahun_list:
-                    df_th = pd.read_parquet(os.path.join(path_s, f"{th}.parquet"))
-                    st.caption(f"**Tahun {th}** ({len(df_th)} baris)")
-                    st.dataframe(df_th, use_container_width=True, height=min(200, 35*len(df_th)+38))
-            else:
-                st.info("Belum ada data. Silakan tambah data di atas atau upload file.")
+            for th in tahun_list:
+                df_th = pd.read_parquet(os.path.join(path_s, f"{th}.parquet"))
+                # Pastikan kolom sesuai: Kategori, Nilai (tahun diambil dari nama file)
+                if 'Kategori' in df_th.columns and 'Nilai' in df_th.columns:
+                    df_th = df_th[['Kategori', 'Nilai']].copy()
+                    df_th['Tahun'] = th
+                    all_data.append(df_th)
+                else:
+                    # Fallback jika struktur berbeda (misal dari upload)
+                    # Asumsikan kolom pertama kategori, kedua nilai
+                    if len(df_th.columns) >= 2:
+                        df_th = df_th.iloc[:, :2].copy()
+                        df_th.columns = ['Kategori', 'Nilai']
+                        df_th['Tahun'] = th
+                        all_data.append(df_th)
+        if all_data:
+            df_combined = pd.concat(all_data, ignore_index=True)
+            df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]  # urutan kolom
+            
+            # Tampilkan data editor
+            edited_df = st.data_editor(
+                df_combined,
+                use_container_width=True,
+                num_rows="dynamic",  # user bisa tambah/hapus baris
+                column_config={
+                    "Tahun": st.column_config.NumberColumn("Tahun", min_value=2000, max_value=2030, step=1),
+                    "Kategori": st.column_config.TextColumn("Kategori"),
+                    "Nilai": st.column_config.NumberColumn("Nilai", format="%.2f"),
+                },
+                key=f"data_editor_{snama}"
+            )
+            
+            # Tombol simpan perubahan
+            col_save, col_refresh = st.columns(2)
+            with col_save:
+                if st.button("💾 Simpan Semua Perubahan", type="primary", use_container_width=True):
+                    # Hapus semua file parquet lama
+                    for th in tahun_list:
+                        core.hapus_semua_data_tahun(snama, th)
+                    # Simpan ulang berdasarkan edited_df, pisahkan per tahun
+                    for tahun, group in edited_df.groupby('Tahun'):
+                        # Ambil kolom Kategori dan Nilai
+                        df_to_save = group[['Kategori', 'Nilai']].copy()
+                        # Simpan ke file
+                        folder = os.path.join("data_survei", snama)
+                        os.makedirs(folder, exist_ok=True)
+                        file_path = os.path.join(folder, f"{tahun}.parquet")
+                        df_to_save.to_parquet(file_path, index=False)
+                    st.success("✅ Semua perubahan disimpan!")
+                    st.session_state.last_loaded = None
+                    st.rerun()
+            with col_refresh:
+                if st.button("🔄 Refresh Data", use_container_width=True):
+                    st.session_state.last_loaded = None
+                    st.rerun()
         else:
-            st.info("Folder data kosong.")
+            st.info("Belum ada data. Silakan tambah data di atas atau upload file.")
 
     # --- UNGGAH DATA (tetap ada sebagai alternatif) ---
     col_up, col_sv = st.columns([3, 1])

@@ -99,14 +99,17 @@ def ambil_viz_config(nama_survei):
             return json.load(f)
     return None
 
-# ========== FUNGSI TAMBAHAN UNTUK INPUT MANUAL ==========
 def tambah_data_manual(nama_survei, tahun, kategori, nilai):
-    folder = os.path.join(BASE_DIR, nama_survei)
+    """Menambahkan satu baris data ke file parquet untuk tahun tertentu."""
+    import pandas as pd
+    import os
+    folder = os.path.join("data_survei", nama_survei)
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, f"{tahun}.parquet")
     df_baru = pd.DataFrame([{"Kategori": str(kategori), "Nilai": float(nilai)}])
     if os.path.exists(file_path):
         df_lama = pd.read_parquet(file_path)
+        # Pastikan kolom sesuai
         df_gabung = pd.concat([df_lama, df_baru], ignore_index=True)
         df_gabung.to_parquet(file_path, index=False)
     else:
@@ -114,12 +117,48 @@ def tambah_data_manual(nama_survei, tahun, kategori, nilai):
     return True, f"Berhasil menambah data: {kategori} = {nilai} (tahun {tahun})"
 
 def hapus_semua_data_tahun(nama_survei, tahun):
-    folder = os.path.join(BASE_DIR, nama_survei)
+    """Menghapus seluruh file data untuk satu tahun."""
+    import os
+    folder = os.path.join("data_survei", nama_survei)
     file_path = os.path.join(folder, f"{tahun}.parquet")
     if os.path.exists(file_path):
         os.remove(file_path)
         return True, f"Data tahun {tahun} berhasil dihapus."
     return False, f"Tidak ada data untuk tahun {tahun}."
+
+def edit_data_manual(nama_survei, tahun, df_baru):
+    """Menyimpan ulang seluruh data untuk satu tahun (digunakan untuk edit)."""
+    import os
+    folder = os.path.join("data_survei", nama_survei)
+    os.makedirs(folder, exist_ok=True)
+    file_path = os.path.join(folder, f"{tahun}.parquet")
+    df_baru.to_parquet(file_path, index=False)
+    return True, f"Data tahun {tahun} berhasil diperbarui."
+
+def ambil_semua_data(nama_survei):
+    """Menggabungkan semua tahun menjadi satu DataFrame dengan kolom Tahun, Kategori, Nilai."""
+    import pandas as pd
+    import os
+    folder = os.path.join("data_survei", nama_survei)
+    if not os.path.exists(folder):
+        return pd.DataFrame(columns=["Tahun", "Kategori", "Nilai"])
+    all_dfs = []
+    for fname in os.listdir(folder):
+        if fname.endswith(".parquet") and not fname.endswith("_metadata.json"):
+            tahun = fname.replace(".parquet", "")
+            df = pd.read_parquet(os.path.join(folder, fname))
+            if "Kategori" not in df.columns or "Nilai" not in df.columns:
+                # Jika format lama, coba konversi
+                if len(df.columns) == 2:
+                    df.columns = ["Kategori", "Nilai"]
+                else:
+                    continue
+            df = df[["Kategori", "Nilai"]].copy()
+            df["Tahun"] = str(tahun)
+            all_dfs.append(df)
+    if all_dfs:
+        return pd.concat(all_dfs, ignore_index=True)[["Tahun", "Kategori", "Nilai"]]
+    return pd.DataFrame(columns=["Tahun", "Kategori", "Nilai"])
 
 # ========== FUNGSI GEMINI (DIPERBAIKI) ==========
 def minta_interpretasi_gemini(ringkasan_data, nama_survei):

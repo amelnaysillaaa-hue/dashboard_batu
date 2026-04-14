@@ -301,7 +301,7 @@ elif st.session_state.halaman == "Visualisasi":
         with col_t:
             new_tahun = st.number_input("Tahun", min_value=2000, max_value=2030, value=2024, step=1, key="manual_tahun")
         with col_n:
-            new_nilai = st.number_input("Nilai", value=0.0, step=0.01, format="%.2f", key="manual_nilai")
+            new_nilai = st.number_input("Nilai", value=0.0, step=0.01, format="%g", key="manual_nilai")
         
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:

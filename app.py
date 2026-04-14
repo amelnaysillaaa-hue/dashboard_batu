@@ -421,6 +421,14 @@ elif st.session_state.halaman == "Visualisasi":
                             n_size = st.number_input("Ukuran Font", 8, 24, int(ch.get('font_size', 12)), key=f"size_{idx}")
                             c_txt = st.color_picker("Warna Teks", ch.get('color_txt', '#000000'), key=f"txtcol_{idx}")
                             c_bg = st.color_picker("Warna Latar", ch.get('color_bg', '#FFFFFF'), key=f"bgcol_{idx}")
+                            # Posisi Legend
+                            st.markdown("**📍 Posisi Legend**")
+                            legend_position = st.selectbox(
+                                "Pilih posisi legend:",
+                                ["Atas (horizontal)", "Bawah (horizontal)", "Kanan (vertikal)", "Kiri (vertikal)"],
+                                index=["Atas (horizontal)", "Bawah (horizontal)", "Kanan (vertikal)", "Kiri (vertikal)"].index(ch.get('legend_position', "Atas (horizontal)")),
+                                key=f"legend_pos_{idx}"
+                            )
                             # Pengaturan interpretasi
                             st.markdown("**📝 Teks Interpretasi**")
                             use_border = st.checkbox("Pakai kotak pembatas", value=ch.get('ai_border', False), key=f"border_{idx}")
@@ -445,6 +453,7 @@ elif st.session_state.halaman == "Visualisasi":
                                 'ai_border': use_border, 'ai_bg_col': c_brd_bg,
                                 'ai_line_col': c_brd_line, 'ai_line_w': v_brd_width,
                                 'ai_y': v_jarak, 'ai_align': v_align, 'ai_w': v_lebar,
+                                'legend_position': legend_position, 
                                 'has_config': True
                             })
                             if st.button(f"🗑️ Hapus Grafik {idx+1}", key=f"del_{idx}"):
@@ -576,21 +585,39 @@ elif st.session_state.halaman == "Visualisasi":
                             bottom_margin = 170
 
                         # Layout
+                        legend_pos = ch.get('legend_position', "Atas (horizontal)")
+                        if legend_pos == "Atas (horizontal)":
+                            legend_settings = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None)
+                            margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin)
+                        elif legend_pos == "Bawah (horizontal)":
+                            legend_settings = dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5, title=None)
+                            # Tambah margin bawah agar legend tidak numpuk
+                            bottom_margin_adj = max(bottom_margin, 100)
+                            margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin_adj)
+                        elif legend_pos == "Kanan (vertikal)":
+                            legend_settings = dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.02, title=None)
+                            margin_dict = dict(l=l_margin, r=120, t=90, b=bottom_margin)  # tambah margin kanan
+                        elif legend_pos == "Kiri (vertikal)":
+                            legend_settings = dict(orientation="v", yanchor="middle", y=0.5, xanchor="right", x=-0.02, title=None)
+                            margin_dict = dict(l=120, r=50, t=90, b=bottom_margin)  # tambah margin kiri
+                        else:
+                            legend_settings = dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None)
+                            margin_dict = dict(l=l_margin, r=50, t=90, b=bottom_margin)
+
                         fig.update_layout(
                             title={'text': wrap_judul(n_title, width=30), 'x': 0.5, 'y': 0.95,
-                                   'xanchor': 'center', 'yanchor': 'top',
-                                   'font': {'family': n_font, 'size': n_size + 4, 'color': c_txt}},
-                            margin=dict(l=l_margin, r=50, t=90, b=bottom_margin),
+                                'xanchor': 'center', 'yanchor': 'top',
+                                'font': {'family': n_font, 'size': n_size + 4, 'color': c_txt}},
+                            margin=margin_dict,
                             plot_bgcolor='rgba(0,0,0,0)',
                             paper_bgcolor=c_bg,
                             font=dict(family=n_font, size=n_size, color=c_txt),
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                                        xanchor="center", x=0.5, title=None),
+                            legend=legend_settings,
                             xaxis=dict(tickangle=0, showgrid=False, linecolor=c_txt,
-                                       tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
+                                    tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
                             yaxis=dict(tickformat=',.2f', gridcolor='rgba(128,128,128,0.1)',
-                                       showline=False, zeroline=False,
-                                       tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
+                                    showline=False, zeroline=False,
+                                    tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
@@ -628,7 +655,7 @@ elif st.session_state.halaman == "Visualisasi":
 
     st.write("---")
     if st.button("➕ Tambah Grafik Baru", width='stretch'):
-        charts.append({"type": "Bar", "agg": "Jumlah (Count)", "has_config": False})
+        charts.append({"type": "Bar", "agg": "Jumlah (Count)", "has_config": False, "legend_position": "Atas (horizontal)"})
         st.rerun()
 
 # ==================== HALAMAN DETAIL ====================

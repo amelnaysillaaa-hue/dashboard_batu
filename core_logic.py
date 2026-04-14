@@ -2,15 +2,18 @@ import os
 import pandas as pd
 import shutil
 import json
-from dotenv import load_dotenv
-from google import genai
+import tempfile
+import re
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+from google import genai
 
 load_dotenv()
 
 BASE_DIR = "data_survei"
 
+# ==================== INISIALISASI & MANAJEMEN SURVEI ====================
 def inisialisasi_sistem():
     if not os.path.exists(BASE_DIR):
         os.makedirs(BASE_DIR)
@@ -35,7 +38,9 @@ def hapus_survei(nama):
         return True, f"Survei '{nama.upper()}' telah dihapus selamanya."
     return False, "Gagal menghapus! Folder tidak ditemukan."
 
+# ==================== MANAJEMEN DATA (UPLOAD, BACA, SIMPAN) ====================
 def simpan_data_upload(nama_survei, file, tahun):
+    """Upload data dengan menentukan tahun manual (legacy)."""
     try:
         path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
         if file.name.endswith('.sav'):
@@ -50,6 +55,128 @@ def simpan_data_upload(nama_survei, file, tahun):
         return True, f"Data {nama_survei.upper()} tahun {tahun} berhasil diunggah."
     except Exception as e:
         return False, f"Terjadi kesalahan: {str(e)}"
+
+def simpan_data_upload_auto(nama_survei, file_upload):
+    """
+    Upload file dan otomatis deteksi kolom kategori, nilai, dan tahun.
+    Mendukung file dengan banyak kolom (lebih dari 3).
+    """
+    ext = file_upload.name.split('.')[-1].lower()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
+        tmp.write(file_upload.getvalue())
+        tmp_path = tmp.name
+
+    try:
+        if ext == 'csv':
+            df = pd.read_csv(tmp_path)
+        elif ext == 'xlsx':
+            df = pd.read_excel(tmp_path)
+        elif ext == 'sav':
+            import pyreadstat
+            df, _ = pyreadstat.read_sav(tmp_path)
+        else:
+            return False, "Format file tidak didukung"
+    except Exception as e:
+        return False, f"Gagal membaca file: {e}"
+    finally:
+        os.unlink(tmp_path)
+
+    # Helper functions
+    def is_categorical(col):
+        return df[col].dtype in ['object', 'category'] or df[col].dtype.name == 'category'
+
+    def is_numeric(col):
+        return pd.api.types.is_numeric_dtype(df[col])
+
+    def is_year_column(col):
+        if is_numeric(col):
+            uniq = df[col].dropna().unique()
+            if len(uniq) <= 20 and all(1900 <= x <= 2100 for x in uniq):
+                return True
+        if re.search(r'tahun|year|thn', col, re.I):
+            return True
+        return False
+
+    # 1. Deteksi kolom tahun
+    tahun_col = None
+    for col in df.columns:
+        if is_year_column(col):
+            tahun_col = col
+            break
+
+    # 2. Deteksi kolom kategori (string dengan unique <= 50)
+    kategori_col = None
+    for col in df.columns:
+        if col == tahun_col:
+            continue
+        if is_categorical(col):
+            unique_vals = df[col].nunique()
+            if unique_vals <= 50:
+                kategori_col = col
+                break
+    if kategori_col is None:
+        for col in df.columns:
+            if col != tahun_col and not is_numeric(col):
+                kategori_col = col
+                break
+    if kategori_col is None:
+        kategori_col = df.columns[0]
+
+    # 3. Deteksi kolom nilai (numerik, bukan tahun & bukan kategori)
+    nilai_col = None
+    for col in df.columns:
+        if col not in [tahun_col, kategori_col] and is_numeric(col):
+            nilai_col = col
+            break
+    if nilai_col is None:
+        for col in df.columns:
+            if is_numeric(col) and col != tahun_col:
+                nilai_col = col
+                break
+    if nilai_col is None:
+        return False, "Tidak ditemukan kolom numerik untuk nilai."
+
+    folder = os.path.join(BASE_DIR, nama_survei)
+    os.makedirs(folder, exist_ok=True)
+
+    if tahun_col is not None:
+        # Format panjang
+        df[tahun_col] = df[tahun_col].astype(str)
+        tahun_unik = df[tahun_col].unique()
+        for th in tahun_unik:
+            df_th = df[df[tahun_col] == th][[kategori_col, nilai_col]].copy()
+            df_th.columns = ['Kategori', 'Nilai']
+            df_th = df_th.dropna(subset=['Nilai'])
+            path_file = os.path.join(folder, f"{th}.parquet")
+            df_th.to_parquet(path_file, index=False)
+        return True, f"✅ Berhasil! {len(tahun_unik)} tahun data tersimpan. (Kategori='{kategori_col}', Nilai='{nilai_col}', Tahun='{tahun_col}')"
+    else:
+        # Coba deteksi format lebar (kolom lain sebagai tahun)
+        year_candidates = []
+        for col in df.columns:
+            if col not in [kategori_col, nilai_col]:
+                try:
+                    yr = int(col)
+                    if 2000 <= yr <= 2030:
+                        year_candidates.append((col, yr))
+                except:
+                    pass
+        if year_candidates:
+            for col, yr in year_candidates:
+                df_th = df[[kategori_col, col]].copy()
+                df_th.columns = ['Kategori', 'Nilai']
+                df_th = df_th.dropna(subset=['Nilai'])
+                path_file = os.path.join(folder, f"{yr}.parquet")
+                df_th.to_parquet(path_file, index=False)
+            return True, f"✅ Berhasil! {len(year_candidates)} tahun data tersimpan (format lebar)."
+        else:
+            # Tidak ada petunjuk tahun, simpan sebagai tahun 2024
+            df_th = df[[kategori_col, nilai_col]].copy()
+            df_th.columns = ['Kategori', 'Nilai']
+            df_th = df_th.dropna(subset=['Nilai'])
+            path_file = os.path.join(folder, "2024.parquet")
+            df_th.to_parquet(path_file, index=False)
+            return True, "⚠️ Tidak ditemukan kolom tahun. Data disimpan sebagai tahun 2024. Anda dapat mengedit tahun di tabel data nanti."
 
 def ambil_info_data(nama_survei, tahun):
     path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")
@@ -75,6 +202,7 @@ def hapus_dataset_tahun(nama_survei, tahun):
     except Exception as e:
         return False, f"Gagal menghapus: {str(e)}"
 
+# ==================== METADATA ====================
 def simpan_metadata_tahunan(nama_survei, tahun, kamus_data):
     path = os.path.join(BASE_DIR, nama_survei, f"{tahun}_metadata.json")
     with open(path, 'w') as f:
@@ -87,6 +215,7 @@ def ambil_metadata_tahunan(nama_survei, tahun):
             return json.load(f)
     return {}
 
+# ==================== KONFIGURASI VISUALISASI ====================
 def simpan_viz_config(nama_survei, config):
     path = os.path.join(BASE_DIR, nama_survei, "viz_config.json")
     with open(path, 'w') as f:
@@ -99,17 +228,14 @@ def ambil_viz_config(nama_survei):
             return json.load(f)
     return None
 
+# ==================== MANAJEMEN DATA MANUAL (EDITOR) ====================
 def tambah_data_manual(nama_survei, tahun, kategori, nilai):
-    """Menambahkan satu baris data ke file parquet untuk tahun tertentu."""
-    import pandas as pd
-    import os
-    folder = os.path.join("data_survei", nama_survei)
+    folder = os.path.join(BASE_DIR, nama_survei)
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, f"{tahun}.parquet")
     df_baru = pd.DataFrame([{"Kategori": str(kategori), "Nilai": float(nilai)}])
     if os.path.exists(file_path):
         df_lama = pd.read_parquet(file_path)
-        # Pastikan kolom sesuai
         df_gabung = pd.concat([df_lama, df_baru], ignore_index=True)
         df_gabung.to_parquet(file_path, index=False)
     else:
@@ -117,9 +243,7 @@ def tambah_data_manual(nama_survei, tahun, kategori, nilai):
     return True, f"Berhasil menambah data: {kategori} = {nilai} (tahun {tahun})"
 
 def hapus_semua_data_tahun(nama_survei, tahun):
-    """Menghapus seluruh file data untuk satu tahun."""
-    import os
-    folder = os.path.join("data_survei", nama_survei)
+    folder = os.path.join(BASE_DIR, nama_survei)
     file_path = os.path.join(folder, f"{tahun}.parquet")
     if os.path.exists(file_path):
         os.remove(file_path)
@@ -127,9 +251,8 @@ def hapus_semua_data_tahun(nama_survei, tahun):
     return False, f"Tidak ada data untuk tahun {tahun}."
 
 def edit_data_manual(nama_survei, tahun, df_baru):
-    """Menyimpan ulang seluruh data untuk satu tahun (digunakan untuk edit)."""
-    import os
-    folder = os.path.join("data_survei", nama_survei)
+    """Menyimpan ulang seluruh data untuk satu tahun (digunakan untuk edit massal)."""
+    folder = os.path.join(BASE_DIR, nama_survei)
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, f"{tahun}.parquet")
     df_baru.to_parquet(file_path, index=False)
@@ -137,9 +260,7 @@ def edit_data_manual(nama_survei, tahun, df_baru):
 
 def ambil_semua_data(nama_survei):
     """Menggabungkan semua tahun menjadi satu DataFrame dengan kolom Tahun, Kategori, Nilai."""
-    import pandas as pd
-    import os
-    folder = os.path.join("data_survei", nama_survei)
+    folder = os.path.join(BASE_DIR, nama_survei)
     if not os.path.exists(folder):
         return pd.DataFrame(columns=["Tahun", "Kategori", "Nilai"])
     all_dfs = []
@@ -148,7 +269,6 @@ def ambil_semua_data(nama_survei):
             tahun = fname.replace(".parquet", "")
             df = pd.read_parquet(os.path.join(folder, fname))
             if "Kategori" not in df.columns or "Nilai" not in df.columns:
-                # Jika format lama, coba konversi
                 if len(df.columns) == 2:
                     df.columns = ["Kategori", "Nilai"]
                 else:
@@ -160,20 +280,16 @@ def ambil_semua_data(nama_survei):
         return pd.concat(all_dfs, ignore_index=True)[["Tahun", "Kategori", "Nilai"]]
     return pd.DataFrame(columns=["Tahun", "Kategori", "Nilai"])
 
-# ========== FUNGSI GEMINI (DIPERBAIKI) ==========
+# ==================== FUNGSI GEMINI VIA OPENROUTER ====================
 def minta_interpretasi_gemini(ringkasan_data, nama_survei):
-    # Ambil API Key dari Streamlit secrets
     api_key = st.secrets["OPENROUTER_API_KEY"]
-    
     url = "https://openrouter.ai/api/v1/chat/completions"
-    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    
     data = {
-        "model": "openrouter/free",   # model gratis
+        "model": "openrouter/free",
         "messages": [
             {
                 "role": "user",
@@ -181,7 +297,6 @@ def minta_interpretasi_gemini(ringkasan_data, nama_survei):
             }
         ]
     }
-    
     try:
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()

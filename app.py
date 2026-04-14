@@ -356,7 +356,7 @@ elif st.session_state.halaman == "Visualisasi":
                 column_config={
                     "Tahun": st.column_config.NumberColumn("Tahun", min_value=2000, max_value=2030, step=1, format="%d"),
                     "Kategori": st.column_config.TextColumn("Kategori"),
-                    "Nilai": st.column_config.NumberColumn("Nilai", format="%.2f"),
+                    "Nilai": st.column_config.NumberColumn("Nilai", format="%g"),
                 },
                 key=f"data_editor_{snama}"
             )

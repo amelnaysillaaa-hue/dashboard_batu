@@ -271,6 +271,7 @@ elif st.session_state.halaman == "Visualisasi":
 
     # --- FITUR INPUT DATA MANUAL (SPREADSHEET) ---
     with st.expander("📝 Input Data Manual (Isi Langsung)", expanded=False):
+        # --- EDITABLE DATA TABLE (SEMUA TAHUN) ---
         st.markdown("---")
         st.markdown("**📋 Data Semua Tahun (Klik sel untuk edit langsung)**")
         
@@ -293,15 +294,19 @@ elif st.session_state.halaman == "Visualisasi":
         if all_data:
             df_combined = pd.concat(all_data, ignore_index=True)
             df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]
-            # Pastikan tahun sebagai string untuk menghindari error di data_editor
-            df_combined['Tahun'] = df_combined['Tahun'].astype(str)
+            
+            # PERBAIKAN: Konversi tipe data agar kompatibel dengan data_editor
+            df_combined['Tahun'] = pd.to_numeric(df_combined['Tahun'], errors='coerce').fillna(2024).astype(int)
+            df_combined['Nilai'] = pd.to_numeric(df_combined['Nilai'], errors='coerce')
+            df_combined = df_combined.dropna(subset=['Nilai', 'Tahun'])
+            df_combined['Kategori'] = df_combined['Kategori'].astype(str)
             
             edited_df = st.data_editor(
                 df_combined,
                 use_container_width=True,
                 num_rows="dynamic",
                 column_config={
-                    "Tahun": st.column_config.TextColumn("Tahun"),
+                    "Tahun": st.column_config.NumberColumn("Tahun", min_value=2000, max_value=2030, step=1, format="%d"),
                     "Kategori": st.column_config.TextColumn("Kategori"),
                     "Nilai": st.column_config.NumberColumn("Nilai", format="%.2f"),
                 },
@@ -317,9 +322,6 @@ elif st.session_state.halaman == "Visualisasi":
                     # Simpan ulang berdasarkan edited_df, pisahkan per tahun
                     for tahun, group in edited_df.groupby('Tahun'):
                         df_to_save = group[['Kategori', 'Nilai']].copy()
-                        # Pastikan nilai numerik
-                        df_to_save['Nilai'] = pd.to_numeric(df_to_save['Nilai'], errors='coerce')
-                        df_to_save = df_to_save.dropna(subset=['Nilai'])
                         folder = os.path.join("data_survei", snama)
                         os.makedirs(folder, exist_ok=True)
                         file_path = os.path.join(folder, f"{tahun}.parquet")

@@ -293,7 +293,33 @@ elif st.session_state.halaman == "Visualisasi":
 
     # --- FITUR INPUT DATA MANUAL (SPREADSHEET) ---
     with st.expander("📝 Input Data Manual (Isi Langsung)", expanded=False):
-        # --- EDITABLE DATA TABLE (SEMUA TAHUN) ---
+        # FORM INPUT MANUAL (TAMBAH DATA PER BARIS)
+        st.markdown("**➕ Tambah Data Baru**")
+        col_k, col_t, col_n = st.columns(3)
+        with col_k:
+            new_kat = st.text_input("Kategori", placeholder="Contoh: Asing", key="manual_kat")
+        with col_t:
+            new_tahun = st.number_input("Tahun", min_value=2000, max_value=2030, value=2024, step=1, key="manual_tahun")
+        with col_n:
+            new_nilai = st.number_input("Nilai", value=0.0, step=0.01, format="%.2f", key="manual_nilai")
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("➕ Tambah Data", type="primary", use_container_width=True):
+                if new_kat.strip():
+                    sukses, pesan = core.tambah_data_manual(snama, new_tahun, new_kat.strip(), new_nilai)
+                    if sukses:
+                        st.success(pesan)
+                        st.session_state.last_loaded = None
+                        st.rerun()
+                    else:
+                        st.error(pesan)
+                else:
+                    st.warning("Kategori harus diisi")
+        with col_btn2:
+            # Tombol hapus semua data (akan kita tambahkan nanti, opsional)
+            pass
+        
         st.markdown("---")
         st.markdown("**📋 Data Semua Tahun (Klik sel untuk edit langsung)**")
         
@@ -317,7 +343,7 @@ elif st.session_state.halaman == "Visualisasi":
             df_combined = pd.concat(all_data, ignore_index=True)
             df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]
             
-            # PERBAIKAN: Konversi tipe data agar kompatibel dengan data_editor
+            # Konversi tipe data
             df_combined['Tahun'] = pd.to_numeric(df_combined['Tahun'], errors='coerce').fillna(2024).astype(int)
             df_combined['Nilai'] = pd.to_numeric(df_combined['Nilai'], errors='coerce')
             df_combined = df_combined.dropna(subset=['Nilai', 'Tahun'])
@@ -354,11 +380,14 @@ elif st.session_state.halaman == "Visualisasi":
             with col_refresh:
                 if st.button("🔄 Refresh Data", use_container_width=True):
                     st.session_state.last_loaded = None
-                st.markdown("---")
-                if st.button("🗑️ Hapus Semua Data (Semua Tahun)", type="secondary", use_container_width=True):
-                    st.session_state.target_hapus_semua = snama
-                    st.session_state.dialog_aktif = "hapus_semua_data"
                     st.rerun()
+            
+            # Tombol hapus semua data (opsional)
+            st.markdown("---")
+            if st.button("🗑️ Hapus Semua Data (Semua Tahun)", type="secondary", use_container_width=True):
+                st.session_state.target_hapus_semua = snama
+                st.session_state.dialog_aktif = "hapus_semua_data"
+                st.rerun()
         else:
             st.info("Belum ada data. Silakan tambah data di atas atau upload file.")
 

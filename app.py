@@ -488,143 +488,115 @@ elif st.session_state.halaman == "Visualisasi":
                                
                         if sel_years:
                             try:
-                                # --- 1. PROSES DATA ---
+                                # --- 1. BACA DATA DARI SEMUA TAHUN ---
                                 dfs_local = []
                                 for y in sel_years:
                                     df_y = pd.read_parquet(os.path.join(path_s, f"{y}.parquet"))
-                                    km = core.ambil_metadata_tahunan(snama, y)
-                                    peta = {k: v.get('alias', k) for k, v in km.items()}
-                                    df_y = df_y.rename(columns=peta)
-                                    df_y['_Tahun_File_'] = y
+                                    # Terapkan alias dari metadata
+                                    meta = core.ambil_metadata_tahunan(snama, y)
+                                    alias_map = {k: v.get('alias', k) for k, v in meta.items()}
+                                    df_y = df_y.rename(columns=alias_map)
+                                    df_y['_TAHUN'] = str(y)  # tambah kolom tahun
                                     dfs_local.append(df_y)
-                                    new_color_map = {}
+                                df_full = pd.concat(dfs_local, ignore_index=True)
 
-                                df_plot = pd.concat(dfs_local, ignore_index=True)
-                                x_f = peta.get(n_x, n_x)
-                                y_f = peta.get(n_y, n_y) if n_y else None
-                                df_plot[x_f] = df_plot[x_f].astype(str)
+                                # --- 2. DAPATKAN NAMA KOLOM ASLI (setelah alias) ---
+                                all_cols = df_full.columns.tolist()
+                                x_col = n_x if n_x in all_cols else all_cols[0]
+                                y_col = n_y if n_y and n_y in all_cols else None
 
-                                if y_f and n_agg != "Nilai Asli (Value)":
-                                    df_plot[y_f] = pd.to_numeric(df_plot[y_f], errors='coerce')
-
-                                df_clean = df_plot.dropna(subset=[y_f] if y_f else [])
-
-                                # --- 2. AGREGASI ---
+                                # --- 3. AGREGASI BERDASARKAN PILIHAN ---
                                 if "Count" in n_agg:
-                                    res = df_clean.groupby(['_Tahun_File_', x_f]).size().reset_index(name='Nilai')
-                                    label_y_desc = f"Frekuensi {x_f}"
+                                    # Jumlah (Count): hitung frekuensi tiap grup (x_col + tahun)
+                                    df_plot = df_full.groupby(['_TAHUN', x_col]).size().reset_index(name='Nilai')
+                                    label_y = f"Frekuensi {x_col}"
                                 elif "Sum" in n_agg:
-                                    res = df_clean.groupby(['_Tahun_File_', x_f])[y_f].sum().reset_index(name='Nilai')
-                                    label_y_desc = f"Total {y_f}"
+                                    # Total (Sum): jumlahkan y_col per grup
+                                    df_full[y_col] = pd.to_numeric(df_full[y_col], errors='coerce')
+                                    df_plot = df_full.groupby(['_TAHUN', x_col])[y_col].sum().reset_index(name='Nilai')
+                                    label_y = f"Total {y_col}"
                                 elif "Mean" in n_agg:
-                                    res = df_clean.groupby(['_Tahun_File_', x_f])[y_f].mean().reset_index(name='Nilai')
-                                    label_y_desc = f"Rata-rata {y_f}"
-                                else:
-                                    res = df_clean[['_Tahun_File_', x_f, y_f]].copy().rename(columns={y_f: 'Nilai'})
-                                    label_y_desc = y_f
+                                    # Rata-rata (Mean)
+                                    df_full[y_col] = pd.to_numeric(df_full[y_col], errors='coerce')
+                                    df_plot = df_full.groupby(['_TAHUN', x_col])[y_col].mean().reset_index(name='Nilai')
+                                    label_y = f"Rata-rata {y_col}"
+                                else:  # Nilai Asli (Value)
+                                    # Tidak di-group, tampilkan semua titik
+                                    df_full[y_col] = pd.to_numeric(df_full[y_col], errors='coerce')
+                                    df_plot = df_full[['_TAHUN', x_col, y_col]].copy()
+                                    df_plot = df_plot.rename(columns={y_col: 'Nilai'})
+                                    label_y = y_col
 
-                                res = res.sort_values(by=x_f)
+                                # Buang baris yang Nilai-nya NaN
+                                df_plot = df_plot.dropna(subset=['Nilai'])
 
-                                # --- 3. PREPARASI TAMPILAN & STYLE ---
-                                n_orientasi = ch.get('orientasi', "Vertical")
-                                opt_posisi = st.session_state.get(f"pos_ai_{idx}", "Bawah")
-                                isi_ai = st.session_state.get(id_unik, "")
+                                # Pastikan tipe data
+                                df_plot['_TAHUN'] = df_plot['_TAHUN'].astype(str)
+                                df_plot[x_col] = df_plot[x_col].astype(str)
 
-                                n_font = st.session_state.get(f"font_{idx}", ch.get('font_family', 'Arial'))
-                                size_pake = st.session_state.get(f"size_{idx}", ch.get('font_size', 12))
-                                c_txt = st.session_state.get(f"cp_txt_{idx}", ch.get('color_txt', '#000000'))
-                                c_bg = st.session_state.get(f"cp_bg_{idx}", ch.get('color_bg', '#FFFFFF'))
-
-                                # Atur margin dan tinggi berdasarkan posisi AI
-                                h_pake = 450
-                                b_marg = 120 if (isi_ai and opt_posisi == "Dalam Grafik") else 80
-
-                                # Reshape data untuk Plotly (Tahun sebagai Legend)
-                                kolom_bersih = [c for c in df_clean.columns if c not in ['_Tahun_File_']]
-                                df_fix = df_clean[kolom_bersih]
-                                df_tab = df_fix.set_index(df_fix.columns[0]).T.reset_index()
-                                df_tab.columns.values[0] = "Jenis Harga"
-                                res_melt = df_tab.melt(id_vars=["Jenis Harga"], var_name="Tahun", value_name="Nilai Ekonomi")
-
-
-                                # -# --- 4. PEMBUATAN GRAFIK & KUSTOM WARNA ---
-                                # 1. Rapikan Kolom secara Langsung (Pasti Aman)
-                                # Dari hasil melt di atas, urutannya pasti: ["Jenis Harga", "Tahun", "Nilai Ekonomi"]
-                                res_plot = res_melt.copy()
-                                res_plot.columns = ['Kategori', 'Tahun', 'Nilai']
-                                
-                                # Paksa jadi string biar sinkron sama warna kustom
-                                res_plot['Kategori'] = res_plot['Kategori'].astype(str)
-                                res_plot['Tahun'] = res_plot['Tahun'].astype(str)
-
-                                # 2. MUNCULKAN COLOR PICKER DI SINI
-                                st.write("🎨 **Warna Tiap Kategori:**")
+                                # --- 4. PREPARE WARNA KUSTOM ---
                                 dict_warna = ch.get('color_map', {})
-                                list_batang = res_plot['Kategori'].unique()
-                                
+                                unique_kategori = df_plot[x_col].unique()
                                 new_color_map = {}
-                                cols_warna = st.columns(min(len(list_batang), 4))
-                                
-                                for i, nama_batang in enumerate(list_batang):
+                                st.write("🎨 **Warna Tiap Kategori:**")
+                                cols_warna = st.columns(min(len(unique_kategori), 4))
+                                for i, kat in enumerate(unique_kategori):
                                     with cols_warna[i % 4]:
-                                        label_batang = str(nama_batang)
-                                        warna_def = dict_warna.get(label_batang, "#636EFA")
-                                        warna_pilih = st.color_picker(f"{label_batang}", warna_def, key=f"cp_final_{idx}_{i}")
-                                        new_color_map[label_batang] = warna_pilih
-                                
-                                # Simpan warna kalau ada perubahan
+                                        warna_def = dict_warna.get(kat, "#636EFA")
+                                        warna_pilih = st.color_picker(f"{kat}", warna_def, key=f"cp_final_{idx}_{i}")
+                                        new_color_map[kat] = warna_pilih
                                 if new_color_map != dict_warna:
                                     ch['color_map'] = new_color_map
 
-                                # 3. FITUR SWITCH ROW/COLUMN
-                                mode_grafik = st.radio("🔄 Switch Tampilan:", 
-                                                       ["Tahun di Sumbu X (Warna = Kategori)", "Kategori di Sumbu X (Warna = Tahun)"], 
-                                                       horizontal=True, key=f"switch_rowcol_{idx}")
-                                
+                                # --- 5. PILIH ORIENTASI SUMBU (Switch Row/Col) ---
+                                mode_grafik = st.radio(
+                                    "🔄 Switch Tampilan:",
+                                    ["Tahun di Sumbu X (Warna = Kategori)", "Kategori di Sumbu X (Warna = Tahun)"],
+                                    horizontal=True, key=f"switch_{idx}"
+                                )
                                 if mode_grafik == "Tahun di Sumbu X (Warna = Kategori)":
-                                    var_x, var_color = 'Tahun', 'Kategori'
-                                    map_warna_aktif = new_color_map # Pakai custom warna kamu!
+                                    var_x, var_color = '_TAHUN', x_col
+                                    color_map_aktif = new_color_map
                                 else:
-                                    var_x, var_color = 'Kategori', 'Tahun'
-                                    map_warna_aktif = {} # Balik ke default kalau warnain tahun
+                                    var_x, var_color = x_col, '_TAHUN'
+                                    color_map_aktif = {}  # tahun tidak pakai custom warna
 
-                                # 4. PLOTTING GRAFIK
+                                # --- 6. BUAT GRAFIK SESUAI TIPE ---
                                 if n_type == "Bar":
-                                    if n_orientasi == "Horizontal":
-                                        fig = px.bar(res_plot, x='Nilai', y=var_x, color=var_color,
+                                    # Cek orientasi (vertical/horizontal)
+                                    orientasi = ch.get('orientasi', 'Vertical')
+                                    if orientasi == "Horizontal":
+                                        fig = px.bar(df_plot, x='Nilai', y=var_x, color=var_color,
                                                     orientation='h', barmode='group', text_auto='.2f',
-                                                    color_discrete_map=map_warna_aktif)
+                                                    color_discrete_map=color_map_aktif)
                                         fig.update_yaxes(autorange="reversed")
-                                        l_pake = 200
+                                        l_margin = 200
                                     else:
-                                        fig = px.bar(res_plot, x=var_x, y='Nilai', color=var_color,
+                                        fig = px.bar(df_plot, x=var_x, y='Nilai', color=var_color,
                                                     barmode='group', text_auto='.2f',
-                                                    color_discrete_map=map_warna_aktif)
+                                                    color_discrete_map=color_map_aktif)
                                         fig.update_traces(marker=dict(cornerradius=10))
-                                        l_pake = 80
-
+                                        l_margin = 80
                                 elif n_type == "Line":
-                                    fig = px.line(res_plot, x=var_x, y='Nilai', color=var_color,
-                                                markers=True, color_discrete_map=map_warna_aktif)
-                                    fig.update_xaxes(type='category') 
-                                    l_pake = 80
+                                    fig = px.line(df_plot, x=var_x, y='Nilai', color=var_color,
+                                                markers=True, color_discrete_map=color_map_aktif)
+                                    l_margin = 80
+                                else:  # Box
+                                    fig = px.box(df_plot, x=var_x, y='Nilai', color=var_color,
+                                                color_discrete_map=color_map_aktif)
+                                    l_margin = 80
 
-                                else:  # Box Plot
-                                    fig = px.box(res_plot, x=var_x, y='Nilai', color=var_color,
-                                                color_discrete_map=map_warna_aktif)
-                                    l_pake = 80
-
-                                # Update spacing biar rapi
-                                fig.update_layout(bargap=0.1, bargroupgap=0.05)
-                                
-                                # --- 5. ANOTASI AI (Hanya jika posisi 'Dalam Grafik') ---
-                                if isi_ai and opt_posisi == "Dalam Grafik":
+                                # --- 7. TAMBAHKAN ANOTASI AI (jika ada teks dan posisi "Dalam Grafik") ---
+                                isi_ai = st.session_state.get(id_unik, "")
+                                posisi_ai = st.session_state.get(f"pos_ai_{idx}", "Bawah")
+                                if isi_ai and posisi_ai == "Dalam Grafik":
                                     lebar_ai = ch.get('ai_w', 500)
                                     align_ai = ch.get('ai_align', 'center')
-                                    jarak_ai = ch.get('ai_y', -0.15)  # naikkan ke -0.15
+                                    jarak_ai = ch.get('ai_y', -0.15)
                                     pakai_kotak = ch.get('ai_border', False)
-                                    kar_per_baris = max(1, int((lebar_ai - 20) / (size_pake * 0.55)))
-                                    wrapped_text = "<br>".join(textwrap.wrap(isi_ai, width=kar_per_baris))
+                                    # wrap teks
+                                    kar_per_baris = max(1, int((lebar_ai - 20) / (n_size * 0.55)))
+                                    wrapped = "<br>".join(textwrap.wrap(isi_ai, width=kar_per_baris))
                                     if align_ai == "left":
                                         x_pos, xanchor = 0.02, "left"
                                     elif align_ai == "right":
@@ -632,119 +604,83 @@ elif st.session_state.halaman == "Visualisasi":
                                     else:
                                         x_pos, xanchor = 0.5, "center"
                                     fig.add_annotation(
-                                        text=wrapped_text, xref="paper", yref="paper",
+                                        text=wrapped, xref="paper", yref="paper",
                                         x=x_pos, xanchor=xanchor, y=jarak_ai, showarrow=False, align=align_ai,
-                                        font=dict(family=n_font, size=size_pake, color=c_txt),
+                                        font=dict(family=n_font, size=n_size, color=c_txt),
                                         bgcolor=ch.get('ai_bg_col', '#FFFFFF') if pakai_kotak else "rgba(0,0,0,0)",
                                         bordercolor=ch.get('ai_line_col', '#000000') if pakai_kotak else "rgba(0,0,0,0)",
                                         borderwidth=ch.get('ai_line_w', 1) if pakai_kotak else 0,
                                         borderpad=10
                                     )
-                                    # pastikan margin bawah cukup
-                                    fig.update_layout(margin=dict(b=170))
+                                    bottom_margin = 170
+                                else:
+                                    bottom_margin = 80
 
-                                # --- 6. FINAL LAYOUT ---
+                                # --- 8. LAYOUT AKHIR ---
                                 fig.update_layout(
                                     title={
                                         'text': wrap_judul(n_title, width=30),
-                                        'x': 0.5,
-                                        'y': 0.95,           # Judul di posisi atas pas tengah
-                                        'xanchor': 'center',
-                                        'yanchor': 'top',
-                                        'font': {'family': n_font, 'size': size_pake + 4, 'color': c_txt}
+                                        'x': 0.5, 'y': 0.95, 'xanchor': 'center', 'yanchor': 'top',
+                                        'font': {'family': n_font, 'size': n_size+4, 'color': c_txt}
                                     },
-                                    # t=170 adalah jarak agar grafik turun ke bawah, tidak nabrak judul
-                                    # r=50 memperkecil margin kanan agar grafik melebar ke samping
-                                    margin=dict(l=l_pake, r=50, t=90, b=b_marg),
-                                   
-                                    plot_bgcolor='rgba(0,0,0,0)', # Bikin background area grafik transparan (bersih)
-                                    paper_bgcolor=c_bg,           # Warna kertas sesuai pilihan session state
+                                    margin=dict(l=l_margin, r=50, t=90, b=bottom_margin),
+                                    plot_bgcolor='rgba(0,0,0,0)',
+                                    paper_bgcolor=c_bg,
                                     font=dict(family=n_font, size=n_size, color=c_txt),
-                                   
-                                    # Legend ditaruh di ATAS secara HORIZONTAL (Kunci tampilan pro)
                                     legend=dict(
-                                        orientation="h",
-                                        yanchor="bottom",
-                                        y=1.02,
-                                        xanchor="center",
-                                        x=0.5,
-                                        font=dict(family=n_font, color=c_txt),
-                                        title=None
+                                        orientation="h", yanchor="bottom", y=1.02,
+                                        xanchor="center", x=0.5, font=dict(family=n_font, color=c_txt), title=None
                                     ),
-                                   
-                                    xaxis=dict(
-                                        tickangle=0,
-                                        showgrid=False,           # Hilangkan garis vertikal
-                                        linecolor=c_txt,          # Garis bawah sumbu X
-                                        tickfont=dict(family=n_font, size=size_pake, color=c_txt),
-                                        title=None
-                                    ),
-                                   
-                                    yaxis=dict(
-                                        tickformat=',.2f',
-                                        gridcolor='rgba(128,128,128,0.1)', # Garis bantu horizontal tipis saja
-                                        showline=False,           # Hilangkan garis vertikal sumbu Y
-                                        zeroline=False,
-                                        tickfont=dict(family=n_font, size=size_pake, color=c_txt),
-                                        title=None                # Hilangkan label "Nilai" biar lebih clean
-                                    )
+                                    xaxis=dict(tickangle=0, showgrid=False, linecolor=c_txt, tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None),
+                                    yaxis=dict(tickformat=',.2f', gridcolor='rgba(128,128,128,0.1)', showline=False, zeroline=False, tickfont=dict(family=n_font, size=n_size, color=c_txt), title=None)
                                 )
-
-                                # Paksa Sumbu X Lurus
-                                fig.update_xaxes(tickangle=0)
-
-                                # --- 7. TAMPILKAN ---
                                 st.plotly_chart(fig, use_container_width=True)
 
-                                # --- 5. KONTROL INTERAKTIF ---
+                                # --- 9. KONTROL INTERAKTIF (Orientasi, Posisi AI, Tombol Gemini, Edit Narasi) ---
                                 st.write("---")
-                               
-                                # Jika bar, munculkan pilihan orientasi
                                 if n_type == "Bar":
-                                    n_orientasi_baru = st.selectbox("↔️ Pilih Orientasi Batang:", ["Vertical", "Horizontal"],
-                                                               index=0 if n_orientasi == "Vertical" else 1, key=f"orient_{id_unik}")
-                                    if n_orientasi_baru != n_orientasi:
-                                        ch['orientasi'] = n_orientasi_baru
+                                    new_orient = st.selectbox("↔️ Pilih Orientasi Batang:", ["Vertical", "Horizontal"],
+                                                            index=0 if ch.get('orientasi', 'Vertical')=="Vertical" else 1,
+                                                            key=f"orient_{idx}")
+                                    if new_orient != ch.get('orientasi'):
+                                        ch['orientasi'] = new_orient
                                         st.rerun()
 
-                                c_pos, c_ai = st.columns([1, 1])
-                                pilihan_posisi = c_pos.radio("📍 Posisi Narasi:", ["Bawah", "Dalam Grafik"],
-                                                           index=0 if opt_posisi == "Bawah" else 1, key=f"radio_pos_{idx}", horizontal=True)
-                               
-                                if pilihan_posisi != opt_posisi:
-                                    st.session_state[f"pos_ai_{idx}"] = pilihan_posisi
+                                col_pos, col_gem = st.columns(2)
+                                new_posisi = col_pos.radio("📍 Posisi Narasi:", ["Bawah", "Dalam Grafik"],
+                                                        index=0 if posisi_ai=="Bawah" else 1,
+                                                        key=f"pos_radio_{idx}", horizontal=True)
+                                if new_posisi != posisi_ai:
+                                    st.session_state[f"pos_ai_{idx}"] = new_posisi
                                     st.rerun()
 
-                                if c_ai.button(f"✨ Tanya Gemini", key=f"btn_gemini_{idx}", width='stretch'):
-                                    if not res.empty:
-                                        # Cari nilai tertinggi dan terendah
-                                        r_max = res.loc[res['Nilai'].idxmax()]
-                                        r_min = res.loc[res['Nilai'].idxmin()]
-                                        
-                                        # BIKIN PROMPT AI LEBIH LENGKAP DENGAN JUDUL GRAFIK (n_title)
-                                        bahan = (
-                                            f"Judul Grafik: '{n_title}'. "
-                                            f"Ini adalah grafik tentang {label_y_desc} berdasarkan kategori {x_f}. "
-                                            f"Data tertinggi ada pada {r_max[x_f]} dengan nilai {r_max['Nilai']:.2f}. "
-                                            f"Sedangkan data terendah ada pada {r_min[x_f]} dengan nilai {r_min['Nilai']:.2f}."
+                                if col_gem.button(f"✨ Tanya Gemini", key=f"btn_gem_{idx}", use_container_width=True):
+                                    if not df_plot.empty:
+                                        # Ambil data tertinggi/terendah dari df_plot (sudah teragregasi)
+                                        max_row = df_plot.loc[df_plot['Nilai'].idxmax()]
+                                        min_row = df_plot.loc[df_plot['Nilai'].idxmin()]
+                                        prompt = (
+                                            f"Judul Grafik: '{n_title}'. Grafik ini menunjukkan {label_y} berdasarkan {x_col}. "
+                                            f"Nilai tertinggi: {max_row[x_col]} = {max_row['Nilai']:.2f} (tahun {max_row['_TAHUN']}). "
+                                            f"Nilai terendah: {min_row[x_col]} = {min_row['Nilai']:.2f} (tahun {min_row['_TAHUN']})."
                                         )
-                                        
                                         with st.spinner("🤖 Menganalisis..."):
-                                            jawaban = core.minta_interpretasi_gemini(ringkasan_data=bahan, nama_survei=snama)
+                                            jawaban = core.minta_interpretasi_gemini(ringkasan_data=prompt, nama_survei=snama)
                                             st.session_state[id_unik] = jawaban
                                             st.rerun()
 
-                                if isi_ai and pilihan_posisi == "Bawah":
+                                if isi_ai and new_posisi == "Bawah":
                                     st.info(isi_ai)
 
-                                isi_baru = st.text_area("📝 Edit Narasi:", value=st.session_state.get(id_unik, ""), key=f"input_area_{id_unik}", height=120)
-                                if isi_baru != st.session_state.get(id_unik, ""):
-                                                st.session_state[id_unik] = isi_baru
-                                                ch['interpretasi_saved'] = isi_baru 
-                                                st.rerun()
+                                teks_baru = st.text_area("📝 Edit Narasi:", value=st.session_state.get(id_unik, ""),
+                                                        key=f"input_ai_{idx}", height=120)
+                                if teks_baru != st.session_state.get(id_unik, ""):
+                                    st.session_state[id_unik] = teks_baru
+                                    ch['interpretasi_saved'] = teks_baru
+                                    st.rerun()
 
                             except Exception as e:
-                                st.error(f"⚠️ Waduh, ada error pas olah data: {e}")
+                                st.error(f"⚠️ Error saat memproses grafik: {e}")
 
     st.write("---")
     if st.button("➕ Tambah Grafik Baru", width='stretch'):

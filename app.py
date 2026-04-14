@@ -34,7 +34,6 @@ def pindah_halaman(nama_halaman, survei=None, target_edit=None):
     st.query_params.clear()
     for k, v in new_params.items():
         st.query_params[k] = v
-    st.sidebar.image("assets/logo.png", use_container_width=True)
     st.rerun()
 
 def wrap_judul(text, width=30):
@@ -45,170 +44,15 @@ def wrap_judul(text, width=30):
 # ==================== STYLE & FONT ====================
 st.markdown(
     """
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&family=Montserrat:wght@400;700&family=Poppins:wght@400;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
     <style>
-    /* Global & Background */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fc 0%, #e9eef5 100%);
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e2a3e 0%, #0f1724 100%);
-        border-right: 1px solid rgba(255,255,255,0.1);
-    }
-    [data-testid="stSidebar"] * {
-        color: #e2e8f0 !important;
-    }
-    [data-testid="stSidebar"] .stButton button {
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 12px;
-        transition: all 0.3s ease;
-    }
-    [data-testid="stSidebar"] .stButton button:hover {
-        background: rgba(255,255,255,0.2);
-        transform: translateX(5px);
-    }
-    [data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] {
-        background-color: rgba(255,255,255,0.1);
-        border-radius: 12px;
-    }
-    
-    /* Main content cards */
-    [data-testid="stContainer"] {
-        background: white;
-        border-radius: 20px;
-        padding: 1rem;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-        transition: transform 0.2s, box-shadow 0.2s;
-        margin-bottom: 1rem;
-    }
-    [data-testid="stContainer"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 12px 28px rgba(0,0,0,0.1);
-    }
-    
-    /* Headings */
-    h1, h2, h3, .stMarkdown h1, .stMarkdown h2 {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        font-weight: 700;
-        background: linear-gradient(135deg, #1e2a3e, #2c3e50);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent !important;
-    }
-    
-    /* Buttons */
-    .stButton button {
-        background: linear-gradient(90deg, #3b82f6, #2563eb);
-        border: none;
-        border-radius: 40px;
-        padding: 0.5rem 1rem;
-        font-weight: 600;
-        color: white !important;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .stButton button:hover {
-        background: linear-gradient(90deg, #2563eb, #1d4ed8);
-        transform: scale(1.02);
-        box-shadow: 0 4px 12px rgba(37,99,235,0.4);
-    }
-    
-    /* Expander header */
-    .streamlit-expanderHeader {
-        background-color: #f8fafc;
-        border-radius: 16px;
-        font-weight: 600;
-        color: #1e293b;
-        border: 1px solid #e2e8f0;
-    }
-    
-    /* Dataframe */
-    .stDataFrame {
-        border-radius: 16px;
-        overflow: hidden;
-        border: 1px solid #e2e8f0;
-    }
-    
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: #f1f5f9;
-        border-radius: 40px;
-        padding: 4px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 40px;
-        padding: 8px 20px;
-        font-weight: 600;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #3b82f6;
-        color: white;
-    }
-    
-    /* Info, success, warning boxes */
-    .stAlert {
-        border-radius: 16px;
-        border-left-width: 6px;
-    }
-    
-    /* Metric & number input */
-    .stNumberInput input {
-        border-radius: 12px;
-        border: 1px solid #cbd5e1;
-    }
-    
-    /* Slider */
-    .stSlider div[data-baseweb="slider"] {
-        border-radius: 10px;
-    }
-    
-    /* Color picker */
-    .stColorPicker {
-        border-radius: 12px;
-    }
-    
-    /* Radio & checkbox */
-    .stRadio div[role="radiogroup"] {
-        gap: 1rem;
-    }
-    .stCheckbox {
-        border-radius: 8px;
-    }
-    
-    /* Footer atau divider */
-    hr {
-        margin: 1.5rem 0;
-        border: none;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-    }
-    
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #e2e8f0;
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #94a3b8;
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
-    }
+    html, body, [class*="css"] { font-size: 14px; }
+    [data-testid="stSidebar"] { font-size: 13px; }
+    .stButton>button { font-size: 12px; }
     </style>
     """,
     unsafe_allow_html=True
 )
-
-
 
 # ==================== INISIALISASI ====================
 core.inisialisasi_sistem()
@@ -665,13 +509,13 @@ elif st.session_state.halaman == "Visualisasi":
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 50
                                 max_val = df_group['Nilai'].max()
-                                fig.update_xaxes(range=[0, max_val * 1.05])
                                 fig.update_traces(marker=dict(cornerradius=10))
                             else:
                                 fig = px.bar(df_group, x=x_var, y='Nilai', color=color_var,
                                              barmode='group', text_auto='.2f',
                                              color_discrete_map=color_map_aktif)
                                 l_margin = 80
+                                max_val = df_group['Nilai'].max()
                                 fig.update_traces(marker=dict(cornerradius=10))
                         elif n_type == "Line":
                             fig = px.line(df_group, x=x_var, y='Nilai', color=color_var,

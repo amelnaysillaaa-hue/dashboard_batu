@@ -58,7 +58,7 @@ def simpan_data_upload(nama_survei, file, tahun):
 def simpan_data_upload_auto(nama_survei, file_upload):
     """
     Upload file dan otomatis deteksi kolom kategori, nilai, dan tahun.
-    Mendukung file dengan banyak kolom.
+    Mendukung file dengan banyak kolom, serta angka desimal dengan koma.
     """
     ext = file_upload.name.split('.')[-1].lower()
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}") as tmp:
@@ -67,7 +67,7 @@ def simpan_data_upload_auto(nama_survei, file_upload):
 
     try:
         if ext == 'csv':
-            df = pd.read_csv(tmp_path)
+            df = pd.read_csv(tmp_path, thousands=None, decimal=',')  # tambahkan decimal=','
         elif ext == 'xlsx':
             df = pd.read_excel(tmp_path)
         elif ext == 'sav':
@@ -80,6 +80,24 @@ def simpan_data_upload_auto(nama_survei, file_upload):
     finally:
         os.unlink(tmp_path)
 
+    # ========== KONVERSI KOMA KE TITIK UNTUK SEMUA KOLOM NUMERIK ==========
+    # Untuk file Excel/SPSS, kita tetap perlu konversi manual karena read_excel tidak punya parameter decimal
+    def convert_comma_to_dot(df):
+        for col in df.columns:
+            if df[col].dtype == 'object':
+                # Coba ubah ke numerik dengan terlebih dahulu mengganti koma jadi titik
+                try:
+                    # Jika kolom berisi string dengan koma, ganti ke titik lalu konversi
+                    converted = pd.to_numeric(df[col].astype(str).str.replace(',', '.'), errors='ignore')
+                    if converted.notna().any():
+                        df[col] = converted
+                except:
+                    pass
+        return df
+    
+    df = convert_comma_to_dot(df)
+
+    # ========== DETEKSI KOLOM ==========
     # Helper functions
     def is_categorical(col):
         return df[col].dtype in ['object', 'category'] or str(df[col].dtype) == 'category'
@@ -180,7 +198,7 @@ def simpan_data_upload_auto(nama_survei, file_upload):
             path_file = os.path.join(folder, "2024.parquet")
             df_th.to_parquet(path_file, index=False)
             return True, "⚠️ Tidak ditemukan kolom tahun. Data disimpan sebagai tahun 2024. Anda dapat mengedit tahun di tabel data nanti."
-
+        
 # ==================== FUNGSI BACA DATA ====================
 def ambil_info_data(nama_survei, tahun):
     path = os.path.join(BASE_DIR, nama_survei, f"{tahun}.parquet")

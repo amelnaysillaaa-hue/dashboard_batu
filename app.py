@@ -578,10 +578,10 @@ elif st.session_state.halaman == "Visualisasi":
                                 fig.update_traces(marker=dict(cornerradius=10))
                         elif n_type == "Line":
                             fig = px.line(df_group, x=x_var, y='Nilai', color=color_var,
-                                          markers=True, text_auto=True, color_discrete_map=color_map_aktif)
+                                          markers=True, color_discrete_map=color_map_aktif)
                             l_margin = 80
                         else:
-                            fig = px.box(df_group, x=x_var, y='Nilai', color=color_var, text_auto=True,
+                            fig = px.box(df_group, x=x_var, y='Nilai', color=color_var, 
                                          color_discrete_map=color_map_aktif)
                             l_margin = 80
 

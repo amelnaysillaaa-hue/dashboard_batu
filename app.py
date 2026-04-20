@@ -299,7 +299,7 @@ elif st.session_state.halaman == "Visualisasi":
         with col_k:
             new_kat = st.text_input("Kategori", placeholder="Contoh: Asing", key="manual_kat")
         with col_t:
-            new_tahun = st.number_input("Tahun", min_value=2000, max_value=2030, value=2024, step=1, key="manual_tahun")
+            new_tahun = st.text_input("Tahun / Periode", placeholder="Contoh: 2024 atau Semester 1", key="manual_tahun")
         with col_n:
             new_nilai = st.number_input("Nilai", value=0.0, step=0.01, format="%g", key="manual_nilai")
         
@@ -344,7 +344,7 @@ elif st.session_state.halaman == "Visualisasi":
             df_combined = df_combined[['Tahun', 'Kategori', 'Nilai']]
             
             # Konversi tipe data
-            df_combined['Tahun'] = pd.to_numeric(df_combined['Tahun'], errors='coerce').fillna(2024).astype(int)
+            df_combined['Tahun'] = df_combined['Tahun'].astype(str)
             df_combined['Nilai'] = pd.to_numeric(df_combined['Nilai'], errors='coerce')
             df_combined = df_combined.dropna(subset=['Nilai', 'Tahun'])
             df_combined['Kategori'] = df_combined['Kategori'].astype(str)
@@ -354,7 +354,8 @@ elif st.session_state.halaman == "Visualisasi":
                 use_container_width=True,
                 num_rows="dynamic",
                 column_config={
-                    "Tahun": st.column_config.NumberColumn("Tahun", min_value=2000, max_value=2030, step=1, format="%d"),
+                    # Sekarang kolom ini bisa nerima teks apa saja
+                    "Tahun": st.column_config.TextColumn("Tahun / Periode"), 
                     "Kategori": st.column_config.TextColumn("Kategori"),
                     "Nilai": st.column_config.NumberColumn("Nilai", format="%g"),
                 },
